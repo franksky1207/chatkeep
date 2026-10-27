@@ -32,6 +32,24 @@ ChatKeep 是公開開發的 ChatGPT 對話典藏工具：使用者貼上**公開
 
 以上是工作階段而非固定 PR 數量；詳見 [開發計畫與驗收](docs/PLAN.md)。
 
-**現況**：已確認第三方 GPT Export 可匯出研究用 JSON；ChatKeep 自行從分享頁擷取**仍未經端到端實測成功**，也尚無正式網站。GitHub Pages 只提供靜態前端，必要時須評估後端／Serverless；不得誤稱可單靠 Pages 繞過跨來源限制。使用開源解析器前需核對授權。
+**現況**：第 1-1＋1-2 批已有實際公開分享頁擷取、共用 JSON、基本 Word 及可操作的本機響應式網頁。指定連結實測取得 1,183 筆訊息記錄，依隱藏／內部／工具分類後可匯出 720 則；Word 重開與桌機／手機尺寸下載流程通過。**研究 JSON 尚未完成逐訊息比對，不能宣稱階段 1 完整性 Gate 全數通過。** 尚無正式網站，未合併或發布。完整證據、限制與測試指令見 [第 1-1＋1-2 批](docs/BATCH_1-1.md)，模型見 [MODEL](docs/MODEL.md)。GitHub Pages 只能提供靜態前端，不能承載本版 Python 擷取後端。
+
+## 本機啟動
+
+需要 Python 3.10+：
+
+```sh
+python -m venv .venv
+. .venv/bin/activate
+python -m pip install -r requirements.txt
+python server.py
+```
+
+在執行機器開啟 http://127.0.0.1:8000 ，貼上公開分享連結，查看統計與警告後下載 Word。對話只在請求記憶體中處理，不保存於伺服器、不記錄正文。這是本機驗證版；若在遠端環境執行，需使用該環境支援的預覽／轉送方式。
+
+```sh
+python -m unittest discover -s tests -v
+```
+
 
 本專案獨立於 `franksky1207/rpg`，不得修改《文明戰線》。

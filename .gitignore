@@ -10,3 +10,10 @@ __pycache__/
 .venv/
 .env
 .env.*
+# Generated exports, browser artifacts and runtime data (synthetic fixtures are code)
+*.docx
+*.json
+*.html
+!web/index.html
+!tests/fixtures/*.html
+.playwright/
