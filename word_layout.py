@@ -1,6 +1,7 @@
 """Reusable, editable Word reading layout. No image rasterization or page-per-turn."""
 from docx.shared import Cm, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.style import WD_STYLE_TYPE
 from docx.enum.table import WD_TABLE_ALIGNMENT, WD_CELL_VERTICAL_ALIGNMENT
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
@@ -23,10 +24,16 @@ def _font(style, size, color=None, bold=False):
 def _keep_rows(table):
     for row in table.rows:
         trpr = row._tr.get_or_add_trPr()
-        marker = OxmlElement("w:cantSplit")
-        trpr.append(marker)
+        # Long cards must flow across pages instead of becoming an oversized,
+        # unsplittable row. Short bubbles/rows still stay together.
+        for old in list(trpr.findall(qn('w:cantSplit'))):
+            trpr.remove(old)
+        size = sum(len(cell.text) for cell in row.cells)
+        lines = sum(cell.text.count('\n') for cell in row.cells)
+        if size <= 800 and lines <= 12 and not any(cell.tables for cell in row.cells):
+            trpr.append(OxmlElement("w:cantSplit"))
         for cell in row.cells:
-            cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
+            cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.TOP
             for paragraph in cell.paragraphs:
                 paragraph.paragraph_format.widow_control = True
 
@@ -88,6 +95,10 @@ def configure(document):
     for name in ("List Bullet", "List Number"):
         document.styles[name].paragraph_format.space_after = Pt(2)
 
+    warning = document.styles.add_style('ChatKeep Warning', WD_STYLE_TYPE.PARAGRAPH)
+    _font(warning, 9, (110, 80, 40))
+    warning.paragraph_format.space_after = Pt(4)
+
     footer = section.footer.paragraphs[0]
     footer.alignment = WD_ALIGN_PARAGRAPH.CENTER
     footrun = footer.add_run("ChatKeep  ·  ")
@@ -99,10 +110,11 @@ def configure(document):
 def polish_tables(document):
     for table in document.tables:
         table.alignment = WD_TABLE_ALIGNMENT.CENTER
-        table.autofit = True
+        table.autofit = False
         _keep_rows(table)
         for row in table.rows:
             for cell in row.cells:
+                polish_tables(cell)
                 for paragraph in cell.paragraphs:
                     paragraph.paragraph_format.space_after = Pt(1)
                     paragraph.paragraph_format.line_spacing = 1.2

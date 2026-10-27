@@ -1,0 +1,16 @@
+# Preparation only. Creating a Render Blueprint would deploy: do not do so in 5-1.
+services:
+  - type: web
+    name: chatkeep
+    runtime: python
+    plan: free
+    branch: main
+    autoDeployTrigger: "off"
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --config gunicorn.conf.py server:application
+    healthCheckPath: /
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.14"
+      - key: CHATKEEP_MAX_CONCURRENT
+        value: "1"

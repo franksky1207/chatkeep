@@ -56,11 +56,11 @@ def markdown(document, value):
             continue
         heading = HEAD.match(line)
         if heading:
-            document.add_heading(heading.group(2), level=min(len(heading.group(1))+1, 6))
+            document.add_paragraph(heading.group(2), style="Heading %d" % min(len(heading.group(1))+2, 6))
             i += 1
             continue
         if line.startswith(">"):
-            box(document, line.lstrip("> "), "F3F3F3")
+            box(document, re.sub(r"^> ?", "", line), "F3F3F3")
             i += 1
             continue
         if line.count("|") >= 2 and i+1 < len(lines) and re.fullmatch(r"[\s|:\-]+", lines[i+1] or "") and "-" in lines[i+1]:
@@ -69,7 +69,7 @@ def markdown(document, value):
             while i < len(lines) and "|" in lines[i]:
                 rows.append(lines[i])
                 i += 1
-            matrix = [[cell.strip() for cell in row.strip().strip("|").split("|")] for row in rows]
+            matrix = [split_cells(row) for row in rows]
             width = max(map(len, matrix))
             if width <= CELL_LIMIT:
                 table = document.add_table(rows=len(matrix), cols=width)
@@ -78,6 +78,7 @@ def markdown(document, value):
                     for c, val in enumerate(cols):
                         celltext(table.cell(r,c), val)
                         if r == 0: shade(table.cell(r,c))
+                table.rows[0]._tr.get_or_add_trPr().append(OxmlElement('w:tblHeader'))
             else:
                 for row in rows: document.add_paragraph(row)
             continue
@@ -85,28 +86,38 @@ def markdown(document, value):
         if bullet:
             numbered = bullet.group(2)[0].isdigit()
             try:
-                document.add_paragraph(bullet.group(3), style="List Number" if numbered else "List Bullet")
+                paragraph = document.add_paragraph((bullet.group(2) + ' ' if numbered else '') + bullet.group(3), style="List Number" if numbered else "List Bullet")
+                if numbered:
+                    # Retain explicit source numbering (e.g. 5., 9.) rather than
+                    # silently restarting a Word list at 1.
+                    numpr = paragraph._p.get_or_add_pPr().get_or_add_numPr()
+                    numpr.get_or_add_numId().val = 0
             except KeyError:
                 document.add_paragraph(line)
             i += 1
             continue
         match = BUBBLE.match(line)
-        if match and (match.group(1) or CLOCK.match(line) or "LINE" in value[:80]):
-            bubble(document, match.group(2).strip(), match.group(3))
+        if match and match.group(1):
+            content = match.group(3)
+            timestamp = ""
+            clock = re.match(r"(\d{1,2}:\d{2})\s+(.+)", content)
+            if clock:
+                timestamp, content = clock.groups()
+            bubble(document, match.group(2).strip(), content, timestamp)
             i += 1
             continue
         # Keep consecutive prose lines in one editable paragraph, preserving line breaks.
         group = [line]
         i += 1
-        while i < len(lines) and lines[i].strip() and not (HEAD.match(lines[i]) or BULLET.match(lines[i]) or DIVIDER.match(lines[i]) or lines[i].startswith(">") or (BUBBLE.match(lines[i]) and "LINE" in value[:80])):
+        while i < len(lines) and lines[i].strip() and not (HEAD.match(lines[i]) or BULLET.match(lines[i]) or DIVIDER.match(lines[i]) or lines[i].startswith(">") or (lines[i].count("|") >= 2 and i+1 < len(lines) and re.fullmatch(r"[\s|:\-]+", lines[i+1] or "")) or (BUBBLE.match(lines[i]) and BUBBLE.match(lines[i]).group(1))):
             group.append(lines[i])
             i += 1
         document.add_paragraph("\n".join(group))
 
 def render(document, node):
     kind = node.kind
-    if kind in ("markdown", "text"):
-        markdown(document, flatten(node) if node.children else node.text)
+    if kind == "markdown" or kind == "text" and not node.children:
+        markdown(document, flatten(node))
     elif kind == "code":
         p = document.add_paragraph()
         p.style = document.styles["Normal"]
@@ -124,21 +135,31 @@ def render(document, node):
         label = attrs.get("alt") or attrs.get("query") or "圖片原始資產未包含在分享資料"
         box(document, "[圖片未嵌入] " + label, "F5F4EC")
     elif kind == "decor":
-        # Decorative icons are not independently meaningful.
+        value = flatten(node)
+        if value:
+            document.add_paragraph(value)
         return
     elif kind in ("box", "card"):
-        # Extract all descendant text in source order. Nested UI syntax removed,
-        # but raw text is not discarded.
-        box(document, flatten(node))
+        table = document.add_table(rows=1, cols=1)
+        shade(table.cell(0, 0))
+        label = node.attrs.get('label') or node.attrs.get('title')
+        if label:
+            table.cell(0, 0).add_paragraph(label)
+        render_nodes(table.cell(0, 0), node.children)
+        if not node.children and not label and flatten(node):
+            table.cell(0, 0).add_paragraph(flatten(node))
     elif kind == "row":
         children = [c for c in node.children if flatten(c).strip()]
         if len(children) >= 2 and len(children) <= 4:
             table = document.add_table(rows=1, cols=len(children))
             table.style = "Table Grid"
             for i, child in enumerate(children):
-                celltext(table.cell(0,i), flatten(child))
+                render_nodes(table.cell(0, i), child.children if child.kind == "col" else [child])
         else:
-            box(document, flatten(node))
+            # A one-column row is ordinary flow; wide rows fall back to ordered
+            # blocks. Flattening here used JSX indentation as dozens of hard
+            # breaks in one nested cell and could clip its final line in Writer.
+            render_nodes(document, node.children)
     elif kind in ("col", "caption", "text", "bold", "italic"):
         value = flatten(node)
         p = document.add_paragraph()
@@ -151,6 +172,57 @@ def render(document, node):
 
 def render_message(document, value):
     nodes, warnings = parse(value)
-    for node in nodes:
-        render(document, node)
+    render_nodes(document, nodes)
+    if any(node.kind == "asset" or node.kind in ("text", "markdown") and re.search(r"<AsyncImage\b", node.text, re.I) for node in walk(nodes)):
+        warnings.append("[圖片未嵌入] 圖片原始資產未取得，已留下文字註記，未嵌入替代圖片。")
+    if re.search(r"\$\$|\\\(|\\\[", value):
+        warnings.append("數學公式保留可編輯原文，尚未轉成 Word 原生公式。")
     return warnings
+
+
+def walk(nodes):
+    for node in nodes:
+        yield node
+        yield from walk(node.children)
+
+
+def render_nodes(document, nodes):
+    # HTMLParser may split ordinary prose into punctuation/entity callbacks.
+    # Keep adjacent literals together rather than inventing a paragraph per token.
+    pending = []
+    def flush():
+        if pending:
+            markdown(document, "".join(pending))
+            pending.clear()
+    for node in nodes:
+        if node.kind in ("text", "markdown") and not node.children and node.text:
+            pending.append(node.text)
+        else:
+            flush()
+            render(document, node)
+    flush()
+    if hasattr(document, '_tc'):
+        initial = document._tc.find(qn('w:p'))
+        if initial is not None and len(document._tc) > 2 and not ''.join(initial.itertext()).strip() and not list(initial.iter(qn('w:br'))):
+            document._tc.remove(initial)
+
+
+def split_cells(row):
+    cells, current, code, escaped = [], [], False, False
+    value = row.strip()
+    if value.startswith('|'): value = value[1:]
+    if value.endswith('|') and not value.endswith('\\|'): value = value[:-1]
+    for char in value:
+        if escaped:
+            current.append(char if char == '|' else '\\' + char)
+            escaped = False
+        elif char == '\\': escaped = True
+        elif char == '`':
+            code = not code
+            current.append(char)
+        elif char == '|' and not code:
+            cells.append(''.join(current).strip()); current = []
+        else: current.append(char)
+    if escaped: current.append('\\')
+    cells.append(''.join(current).strip())
+    return cells

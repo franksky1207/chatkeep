@@ -10,9 +10,7 @@ def model(text):
             "report":{"warnings":["測試樣本"]},
             "messages":[{"role":"assistant","text":text}]}
 
-def extract(doc):
-    return "\n".join(p.text for p in doc.paragraphs) + "\n" + "\n".join(
-        cell.text for table in doc.tables for row in table.rows for cell in row.cells)
+from docx_helpers import document_text as extract
 
 class RichWordTests(unittest.TestCase):
     def test_box_row_nested_text_and_editability(self):

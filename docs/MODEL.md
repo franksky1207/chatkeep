@@ -21,8 +21,19 @@
 
 `status=extracted_unverified` 只表示來源解析／分類未發現已知缺漏，**不代表完整性已驗收**。`partial` 表示已知缺漏／未還原；仍可下載帶警告的文件。`reference_comparison=not_performed` 與「尚未完成逐訊息比對」會持續顯示，直到真正取得研究資料並比對。舊欄位 `verified_against_live_page` 保持 false，因尚未逐則對照分享頁的視覺可見內容；HTTP 擷取成功另由 provenance 及 opt-in live check 證明。數量相同不會自動將任何驗證旗標設為 true。
 
-Word 保留原文標點、tab、換行（Word 以原生 line break 表示；CR／CRLF 依 Word 慣例成為換行），每則訊息有角色標題；不解讀或執行 Markdown、UI 或外部資源。XML 不允許的控制字元會阻止匯出並明確報錯，不無聲刪字。輸出名去除路徑／控制字元與保留裝置名，最長 100 字元再加 .docx。資料只留在本次 HTTP 請求與瀏覽器 Blob，無永久快取、資料庫或伺服器對話檔案。
+Word 原文模式（rich=False）保留原文標點、tab、換行（Word 以原生 line break 表示；CR／CRLF 依 Word 慣例成為換行），每則訊息有角色標題；不解讀或執行 Markdown、UI 或外部資源。XML 不允許的控制字元會阻止匯出並明確報錯，不無聲刪字。輸出名去除路徑／控制字元與保留裝置名，最長 100 字元再加 .docx。資料只留在本次 HTTP 請求與瀏覽器 Blob，無永久快取、資料庫或伺服器對話檔案。
 
 ## 格式與授權參考
 
 延續既有解析器修正，未複製第三方解析器原始碼。參考 turbo-stream 2.4.1 的 [wire 常數](https://unpkg.com/turbo-stream@2.4.1/dist/utils.js) 與 [參照／延遲語義](https://unpkg.com/turbo-stream@2.4.1/dist/unflatten.js)（MIT）。本版支援目前頁面出現的 positional object／array、P deferred，以及合成驗證的多個全域 deferred pool、Z alias、D 日期與特殊值。未支援型別採明確錯誤，不能保證未來未公開 wire format 永遠相容。既有調查來源 chickensintrees/chatgpt-share-reader（MIT）及 dzoba/chatgpt-to-docx 僅為研究參考，未納入其程式。Word 使用 python-docx 1.2.0（MIT，套件自行帶授權）；瀏覽器測試使用 Playwright（Apache-2.0），不屬正式執行依賴。
+
+
+## 第 5-1 批補充契約
+
+閱讀版使用 `semantic` 的安全 token tree，不執行 JSX 屬性／事件。已知元件採原生儲存格，單欄 row 保持子節點文件流；未知格式與動態文字保留並警告。這不改寫 JSON 的原文／content。閱讀版非 Markdown byte equality；來源逐字核對仍走 rich=False。
+
+HTTP report 增加 `rendering_status`（rendered／partial）及 `rendering_warnings`（message_index、reason）。格式／圖片限制會在文件與網頁明示，不能將來源 `issues=[]` 解讀為所有元件已完整還原。來源 `status`／reference_comparison 仍獨立，研究資料未取得前不提升驗證旗標。
+
+進度只計實際下載 bytes、已處理節點／訊息；pack 在實際存檔前發出且不帶百分比。完成前沒有下載檔名欄位。伺服器與前端檔名均限制 100 Unicode codepoints／200 UTF-8 bytes，處理帶副檔名的 Windows 保留名稱；使用者主檔名固定補 .docx，不改 Word 內容。
+
+部署與資源上限、可重現驗收及未通過事項集中於 [BATCH_5-1](BATCH_5-1.md)。

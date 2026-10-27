@@ -1,18 +1,64 @@
-name: Parser quick checks
+name: ChatKeep integration acceptance
 on:
   workflow_dispatch:
-
+    inputs:
+      include_live:
+        description: 'Include anonymous public-page, rich Word/PDF and live browser checks'
+        type: boolean
+        default: true
 permissions:
   contents: read
-
+concurrency:
+  group: chatkeep-integration-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
-  parser:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
+  integration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      PYTHONUNBUFFERED: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-      - name: Synthetic offline tests
-        run: python -m unittest discover -s tests -v
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+      - name: Install Python dependencies once
+        run: python -m pip install -r requirements-dev.txt
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('requirements-dev.txt') }}
+      - name: Install browser and document QA dependencies
+        run: |
+          python -m playwright install-deps chromium webkit
+          sudo apt-get install -y --no-install-recommends libreoffice-writer fonts-noto-cjk
+          python -m playwright install chromium webkit
+      - name: Syntax and all synthetic unit/integration regressions
+        run: |
+          python -m compileall -q chatkeep.py semantic.py rich_word.py word_layout.py word_export.py server.py tests
+          node --check web/app.js
+          git diff --check
+          python -m unittest discover -s tests -v
+      - name: Synthetic native Word and PDF render checks
+        if: ${{ !cancelled() }}
+        run: python tests/visual_check.py
+      - name: Chromium and WebKit responsive browser regressions
+        if: ${{ !cancelled() }}
+        run: python tests/browser_check.py --browser all
+      - name: Production WSGI transport and privacy smoke test
+        if: ${{ !cancelled() }}
+        run: python tests/production_check.py
+      - name: Anonymous live source and Word/PDF verification
+        if: ${{ !cancelled() && inputs.include_live }}
+        run: python tests/live_check.py --visual
+      - name: Live Chromium and WebKit download flow
+        if: ${{ !cancelled() && inputs.include_live }}
+        run: python tests/browser_check.py --browser all --live
+      - name: Live production WSGI conversion
+        if: ${{ !cancelled() && inputs.include_live }}
+        run: python tests/production_check.py --live
+      # No real HTML, JSON, Word, PDF, screenshots or traces are uploaded.

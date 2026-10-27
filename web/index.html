@@ -6,6 +6,7 @@
 <header class="hero"><div class="eyebrow">CHATKEEP · 對話收藏</div><h1>讓每段對話，<br>都能好好保存。</h1><p>貼上公開的 ChatGPT 分享連結，保存成清楚、可編輯的 Word 文件。</p></header>
 <section class="card" aria-labelledby="form-title"><h2 id="form-title">收藏一段對話</h2>
 <form id="convert"><label for="url">ChatGPT 公開分享連結</label><input id="url" type="url" name="url" required placeholder="https://chatgpt.com/share/…" autocomplete="off" spellcheck="false" inputmode="url"><button id="start" type="submit">開始轉換</button></form>
+<button id="cancel" class="cancel" type="button" hidden>取消轉換</button>
 <p class="hint">不需要登入、外掛或 API Key。請確認分享連結及其內容適合公開使用。</p>
 <section id="activity" class="activity" aria-label="目前處理進度" hidden>
   <div class="progress-head"><strong id="progress" role="status" aria-live="polite">正在處理…</strong><strong id="percent" class="percentage" hidden>0%</strong></div>

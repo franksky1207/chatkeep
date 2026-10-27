@@ -1,11 +1,16 @@
 'use strict';
 const $ = id => document.getElementById(id);
 let downloadURL = null;
+let activeController = null;
+let cancelledByUser = false;
 let suggestedFilename = '未命名對話.docx';
 function safeFilename(raw) {
-  let name = String(raw || '').replace(/[<>:"/\\|?*\u0000-\u001f\u007f]/g, '_').trim().replace(/[. ]+$/g, '').slice(0, 100);
+  let name = String(raw || '').replace(/[<>:"/\\|?*\u0000-\u001f\u007f]/g, '_').trim().replace(/^[. ]+|[. ]+$/g, '')
+  name = Array.from(name).slice(0, 100).join('').replace(/[. ]+$/g, '');
+  while (new TextEncoder().encode(name).length > 200) name = Array.from(name).slice(0, -1).join('');
+  name = name.replace(/[. ]+$/g, '');
   if (!name) name = '未命名對話';
-  if (/^(CON|PRN|AUX|NUL|COM[0-9]|LPT[0-9])$/i.test(name)) name = '_' + name;
+  if (/^(CON|PRN|AUX|NUL|COM[0-9¹²³]|LPT[0-9¹²³])$/i.test(name.split('.')[0].trimEnd())) name = '_' + name;
   return name + '.docx';
 }
 function chosenFilename() {
@@ -38,7 +43,7 @@ function showProgress(data) {
 }
 function report(data) {
   $('result').hidden = false;
-  $('summary').textContent = data.status === 'partial' ? '部分內容無法還原，請查看明細。' : '擷取成功，但尚未完成研究 JSON 的逐訊息比對。';
+  $('summary').textContent = data.status === 'partial' || data.rendering_status === 'partial' ? '部分格式或媒體無法完整還原，請查看警告；尚未完成逐訊息比對。' : '擷取成功，但尚未完成研究 JSON 的逐訊息比對。';
   $('stats').replaceChildren();
   for (const [label, value] of [['原始節點', data.raw_nodes], ['訊息記錄', data.raw_messages], ['可匯出訊息', data.readable_messages], ['使用者', data.visible_roles.user || 0], ['ChatGPT', data.visible_roles.assistant || 0], ['分支以外節點', data.off_branch_nodes]]) {
     const dt = document.createElement('dt'), dd = document.createElement('dd');
@@ -76,16 +81,22 @@ function onEvent(data) {
     $('activity').hidden = true;
     return;
   }
+  if (!['fetch', 'parse', 'word', 'pack'].includes(data.stage)) throw new Error('收到無法辨識的進度資料，請重新轉換。');
   showProgress(data);
 }
 $('convert').addEventListener('submit', async e => {
   e.preventDefault();
+  if (activeController) return;
   clearDownload();
+  $('filename').value = '';
+  cancelledByUser = false;
   $('error').hidden = true;
   $('result').hidden = true;
   $('start').disabled = true;
   showProgress({message:'正在連線取得分享頁…',percent:null});
   const controller = new AbortController();
+  activeController = controller;
+  $('cancel').hidden = false;
   const timeout = setTimeout(() => controller.abort(), 90000);
   let done = false;
   try {
@@ -97,12 +108,15 @@ $('convert').addEventListener('submit', async e => {
     }
     if (!response.body) throw new Error('目前瀏覽器不支援回應串流。');
     const reader=response.body.getReader(), decoder=new TextDecoder();
-    let buffer='';
+    let buffer='', received=0;
     while (true) {
       const chunk=await reader.read();
+      received += chunk.value?.byteLength || 0;
+      if (received > 26000000) throw new Error('下載回應超過安全大小上限，請縮小分享範圍。');
       buffer += decoder.decode(chunk.value,{stream:!chunk.done});
       const lines=buffer.split('\n');
       buffer=lines.pop();
+      if (buffer.length > 24000000) throw new Error('下載資料超過安全大小上限。');
       for (const line of lines) if (line) {
         const data=JSON.parse(line);
         onEvent(data);
@@ -116,13 +130,16 @@ $('convert').addEventListener('submit', async e => {
     $('progress').textContent='轉換未完成';
     $('percent').hidden=true; $('meter').hidden=true;
     $('progress-detail').textContent='';
-    $('error').textContent = error.name==='AbortError'?'轉換逾時，請重新嘗試。':(error instanceof TypeError?'網路或下載中斷，請重新嘗試。':error.message);
+    $('error').textContent = error.name==='AbortError'?(cancelledByUser?'已取消轉換。':'轉換逾時，請重新嘗試。'):(error instanceof TypeError?'網路或下載中斷，請重新嘗試。':error.message);
     $('error').hidden=false;
     $('activity').hidden=false;
     $('result').hidden=true;
   } finally {
     clearTimeout(timeout);
     $('start').disabled=false;
+    $('cancel').hidden=true;
+    activeController=null;
   }
 });
-window.addEventListener('pagehide',clearDownload);
+$('cancel').addEventListener('click', () => { cancelledByUser = true; activeController?.abort(); });
+window.addEventListener('pagehide', () => { activeController?.abort(); clearDownload(); });

@@ -12,6 +12,8 @@ import socket
 import time
 import hashlib
 import http.client
+import ipaddress
+import ssl
 from datetime import datetime, timezone
 from collections import Counter
 from urllib.parse import urlsplit
@@ -32,6 +34,49 @@ def validate_url(url):
         raise ExtractionError("Only public https://chatgpt.com/share/<uuid> URLs are allowed")
     return url
 
+
+def public_connection(address, timeout=30, source_address=None):
+    """Pin a validated public destination in direct mode, preventing DNS rebinding.
+
+    Trusted operator-configured HTTPS proxies enforce their own destination policy;
+    they must not be confused with a user-supplied redirect or destination.
+    """
+    host, port = address
+    if host != 'chatgpt.com' or port != 443:
+        raise ExtractionError('目的地主機不在允許清單。')
+    started = time.monotonic()
+    choices = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+    if not choices or any(not ipaddress.ip_address(item[4][0]).is_global for item in choices):
+        raise ExtractionError('分享網址解析至非公開網路，已阻止連線。')
+    last_error = None
+    for family, kind, proto, _, target in choices:
+        connection = socket.socket(family, kind, proto)
+        try:
+            remaining = timeout - (time.monotonic() - started)
+            if remaining <= 0:
+                raise TimeoutError('公開網路連線逾時')
+            connection.settimeout(remaining)
+            if source_address:
+                connection.bind(source_address)
+            connection.connect(target)  # Resolved numeric sockaddr; no second DNS lookup.
+            return connection
+        except OSError as exc:
+            last_error = exc
+            connection.close()
+    raise last_error or ExtractionError('無法建立公開網路連線。')
+
+
+class PublicHTTPSConnection(http.client.HTTPSConnection):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._create_connection = public_connection
+
+
+class PublicHTTPSHandler(urllib.request.HTTPSHandler):
+    def https_open(self, request):
+        return self.do_open(PublicHTTPSConnection, request, context=ssl.create_default_context())
+
+
 def fetch_html(url, timeout=30, max_bytes=20_000_000, on_progress=None):
     """Anonymous HTTPS only; no cookies, scripts, cross-origin or off-path redirects."""
     validate_url(url)
@@ -39,19 +84,27 @@ def fetch_html(url, timeout=30, max_bytes=20_000_000, on_progress=None):
         max_redirections = 3
         def redirect_request(self, req, fp, code, msg, headers, newurl):
             validate_url(newurl)
+            if time.monotonic() - start > timeout:
+                raise ExtractionError('擷取逾時，已停止轉址。')
             return super().redirect_request(req, fp, code, msg, headers, newurl)
     request = urllib.request.Request(url, headers={
         "User-Agent": "Mozilla/5.0 ChatKeep/0.2", "Accept": "text/html",
         "Accept-Encoding": "identity"})
     start = time.monotonic()
     try:
-        with urllib.request.build_opener(RedirectGuard).open(request, timeout=timeout) as response:
+        opener = urllib.request.build_opener(RedirectGuard)
+        if not urllib.request.getproxies().get('https'):
+            opener.add_handler(PublicHTTPSHandler())
+        with opener.open(request, timeout=timeout) as response:
             if response.headers.get_content_type() != "text/html":
                 raise ExtractionError("分享網址未回傳 HTML 頁面")
             if response.headers.get("Content-Encoding", "identity") != "identity":
                 raise ExtractionError("不支援的壓縮回應，請稍後重試")
             length = response.headers.get("Content-Length")
-            if length and int(length) > max_bytes:
+            length = int(length) if length is not None else None
+            if length is not None and length < 0:
+                raise ExtractionError("無效的下載大小")
+            if length is not None and length > max_bytes:
                 raise ExtractionError("HTML exceeds permitted size")
             chunks, total = [], 0
             while True:
@@ -63,10 +116,12 @@ def fetch_html(url, timeout=30, max_bytes=20_000_000, on_progress=None):
                 total += len(chunk)
                 if total > max_bytes:
                     raise ExtractionError("HTML exceeds permitted size")
+                if length is not None and total > length:
+                    raise ExtractionError("HTML 下載大小與宣告不符")
                 chunks.append(chunk)
                 if on_progress:
-                    on_progress(total, int(length) if length else None)
-            if length and total != int(length):
+                    on_progress(total, length if length else None)
+            if length is not None and total != length:
                 raise ExtractionError("HTML 下載不完整")
         return b"".join(chunks).decode("utf-8")
     except urllib.error.HTTPError as exc:
@@ -290,9 +345,12 @@ def normalize(conversation, source_url="", on_progress=None):
     categories, roles, text_roles = Counter(), Counter(), Counter()
     content_type_roles = {}
     seen_ids = set()
-    for index, node in enumerate(nodes):
-        if on_progress and (index % 25 == 0 or index == len(nodes) - 1):
+    if on_progress:
+        on_progress(0, len(nodes))
+    def advance(index):
+        if on_progress and ((index + 1) % 25 == 0 or index == len(nodes) - 1):
             on_progress(index + 1, len(nodes))
+    for index, node in enumerate(nodes):
         if not isinstance(node, dict):
             raise ExtractionError("Invalid conversation node")
         message = node.get("message") if "message" in node else (node if "content" in node or "text" in node else None)
@@ -300,6 +358,7 @@ def normalize(conversation, source_url="", on_progress=None):
             categories["structural"] += 1
             records.append({"node_id": node.get("id"), "parent": node.get("parent"),
                             "category": "structural", "message": None})
+            advance(index)
             continue
         if not isinstance(message, dict):
             raise ExtractionError("Invalid message object")
@@ -355,8 +414,9 @@ def normalize(conversation, source_url="", on_progress=None):
         categories[category] += 1
         if category in ("visible", "non_text"):
             messages.append(dict(record["message"], category=category))
+        advance(index)
     warnings = ["尚未完成逐訊息比對；擷取數量不代表內容已全部驗證。",
-                "本批保留 Markdown 與介面標記原文，尚未進行元件及圖片還原。"]
+                "閱讀版會轉換支援的 Markdown／介面元件；未知格式保留原文，圖片不以替代圖冒充。"]
     if branch_source == "linear_conversation_only":
         warnings.append("來源僅有線性訊息；無法獨立核對目前分支。")
     if issues:

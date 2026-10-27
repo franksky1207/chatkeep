@@ -15,6 +15,7 @@ from chatkeep import ExtractionError, hydrate, normalize, parse_html, fetch_html
 from server import Server, Handler
 from word_export import ExportError, build_docx, filename_for
 from test_chatkeep import Encoder
+from docx_helpers import document_text
 
 URL = 'https://chatgpt.com/share/11111111-1111-1111-1111-111111111111'
 TEXT = '# 標題\n\n繁體中文，標點！😀\t<&>\\跳脫\n```python\nprint("你好")\n```\n<box><row><text>正文不能刪</text></row></box>\n'
@@ -182,7 +183,7 @@ class HTTPTests(unittest.TestCase):
         return urllib.request.urlopen(urllib.request.Request(self.base+'/api/convert',data=json.dumps(payload).encode(),headers=headers or {'Content-Type':'application/json'}),timeout=10)
     def test_complete_http_pipeline(self):
         with patch('chatkeep.fetch_html',return_value=html_for()), self.post({'url':URL}) as response:
-            events=[json.loads(line) for line in response]
+            events=[json.loads(line) for line in response if line.strip()]
             self.assertEqual(events[0]['stage'], 'fetch')
             self.assertEqual(events[-1]['stage'], 'done')
             self.assertIn('parse', [e['stage'] for e in events])
@@ -194,11 +195,11 @@ class HTTPTests(unittest.TestCase):
                     self.assertLessEqual(e['percent'], 100)
             import base64
             doc=Document(BytesIO(base64.b64decode(events[-1]['document'])))
-            self.assertIn('正文不能刪','\n'.join(p.text for p in doc.paragraphs)+ '\n' + '\n'.join(cell.text for t in doc.tables for row in t.rows for cell in row.cells))
+            self.assertIn('正文不能刪',document_text(doc))
             self.assertEqual(response.headers['Cache-Control'],'no-store')
     def test_error_not_success(self):
         with patch('chatkeep.fetch_html',side_effect=ExtractionError('擷取逾時')),self.post({'url':URL}) as response:
-            events=[json.loads(line) for line in response]
+            events=[json.loads(line) for line in response if line.strip()]
             self.assertEqual(events[-1]['stage'],'error');self.assertNotIn('document',events[-1])
         for payload,headers,code in [({'url':'https://evil.test'},{'Content-Type':'application/json'},400),
                                      ({'url':URL},{'Content-Type':'application/json','Origin':'https://evil.test'},403),
