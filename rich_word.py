@@ -24,7 +24,8 @@ def shade(cell, fill="EDF4EF"):
 def celltext(cell, value):
     cell.text = value
     for p in cell.paragraphs:
-        p.paragraph_format.keep_together = True
+        p.paragraph_format.widow_control = True
+        p.paragraph_format.space_after = Pt(1)
 
 def box(document, text, fill="EFF4F2"):
     table = document.add_table(rows=1, cols=1)
@@ -94,8 +95,13 @@ def markdown(document, value):
             bubble(document, match.group(2).strip(), match.group(3))
             i += 1
             continue
-        document.add_paragraph(line)
+        # Keep consecutive prose lines in one editable paragraph, preserving line breaks.
+        group = [line]
         i += 1
+        while i < len(lines) and lines[i].strip() and not (HEAD.match(lines[i]) or BULLET.match(lines[i]) or DIVIDER.match(lines[i]) or lines[i].startswith(">") or (BUBBLE.match(lines[i]) and "LINE" in value[:80])):
+            group.append(lines[i])
+            i += 1
+        document.add_paragraph("\\n".join(group))
 
 def render(document, node):
     kind = node.kind
@@ -104,9 +110,15 @@ def render(document, node):
     elif kind == "code":
         p = document.add_paragraph()
         p.style = document.styles["Normal"]
+        p.paragraph_format.left_indent = Pt(12)
+        p.paragraph_format.right_indent = Pt(8)
+        p.paragraph_format.space_before = Pt(4)
+        p.paragraph_format.space_after = Pt(7)
+        p.paragraph_format.widow_control = True
         run = p.add_run(node.text)
         run.font.name = "Consolas"
         run.font.size = Pt(9)
+        run.font.color.rgb = RGBColor(38, 59, 70)
     elif kind == "asset":
         attrs = node.attrs
         label = attrs.get("alt") or attrs.get("query") or "圖片原始資產未包含在分享資料"
