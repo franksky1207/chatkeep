@@ -27,7 +27,7 @@ def _check_xml(text):
         raise ExportError('來源含 Word 無法保存的控制字元；未產生可能缺字的文件。')
 
 
-def build_docx(model, rich=True):
+def build_docx(model, rich=True, on_progress=None):
     if model.get('schema_version') != '1.0' or not model.get('messages'):
         raise ExportError('沒有可匯出的標準化訊息。')
     document = configure(Document())
@@ -40,6 +40,7 @@ def build_docx(model, rich=True):
     for warning in report['warnings']:
         _check_xml(warning)
         document.add_paragraph(warning)
+    total_messages = len(model['messages'])
     for number, message in enumerate(model['messages'], 1):
         role = {'user': '使用者', 'assistant': 'ChatGPT'}.get(message['role'], message['role'])
         document.add_heading('%d · %s' % (number, role), 2)
@@ -53,6 +54,8 @@ def build_docx(model, rich=True):
             document.add_paragraph().add_run(text)
         if message.get('category') == 'non_text':
             document.add_paragraph('［此訊息含未還原的非文字內容；以上保留可取得文字。］')
+        if on_progress and (number % 10 == 0 or number == total_messages):
+            on_progress(number, total_messages)
     polish_tables(document)
     data = BytesIO()
     document.save(data)
