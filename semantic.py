@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from html.parser import HTMLParser
 import re
 
-KNOWN = {"box", "row", "col", "card", "text", "caption", "bold", "italic"}
+KNOWN = {"box", "row", "col", "card", "text", "caption", "bold", "italic", "button", "badge", "label", "title", "checkbox", "radio", "list", "list-item"}
 VOID = {"asyncimage", "icon", "divider", "spacer"}
 FENCE = re.compile(r"^\s*(?:"+chr(96)+"{3,}|~{3,})")
 
@@ -100,4 +100,6 @@ def parse(source):
 def flatten(node):
     if node.kind in ("text", "markdown", "code", "asset"): return node.text
     if node.kind == "decor": return ""
+    if not node.children and node.kind in ("button", "badge", "label", "checkbox", "radio"):
+        return node.attrs.get("label") or node.attrs.get("value") or node.attrs.get("placeholder") or ""
     return "".join(flatten(child) for child in node.children)
