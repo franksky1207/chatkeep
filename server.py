@@ -21,7 +21,7 @@ def convert(url, emit):
     model = extract_url(url, on_fetched=lambda: emit({'stage': 'parse', 'message': '正在解析資料並核對目前分支…'}))
     emit({'stage': 'parse', 'message': '解析完成，正在核對分支與統計。', 'report': model['report']})
     emit({'stage': 'word', 'message': '正在產生可編輯的 Word…'})
-    data = build_docx(model)
+    data = build_docx(model, rich=True)
     emit({'stage': 'done', 'message': 'Word 已產生，請先查看完整性報告。',
           'report': model['report'], 'filename': filename_for(model['title']),
           'document': base64.b64encode(data).decode('ascii')})
