@@ -101,7 +101,7 @@ def markdown(document, value):
         while i < len(lines) and lines[i].strip() and not (HEAD.match(lines[i]) or BULLET.match(lines[i]) or DIVIDER.match(lines[i]) or lines[i].startswith(">") or (BUBBLE.match(lines[i]) and "LINE" in value[:80])):
             group.append(lines[i])
             i += 1
-        document.add_paragraph("\\n".join(group))
+        document.add_paragraph("\n".join(group))
 
 def render(document, node):
     kind = node.kind
