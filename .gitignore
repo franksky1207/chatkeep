@@ -1,0 +1,12 @@
+# Local private conversations and saved pages
+*.private.json
+conversation.json
+dialog.json
+dialog.docx
+*.saved.html
+*.private.html
+__pycache__/
+*.py[cod]
+.venv/
+.env
+.env.*
