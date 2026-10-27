@@ -100,7 +100,7 @@ def markdown(document, value):
 def render(document, node):
     kind = node.kind
     if kind in ("markdown", "text"):
-        markdown(document, node.text)
+        markdown(document, flatten(node) if node.children else node.text)
     elif kind == "code":
         p = document.add_paragraph()
         p.style = document.styles["Normal"]
