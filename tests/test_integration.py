@@ -183,7 +183,15 @@ class HTTPTests(unittest.TestCase):
     def test_complete_http_pipeline(self):
         with patch('chatkeep.fetch_html',return_value=html_for()), self.post({'url':URL}) as response:
             events=[json.loads(line) for line in response]
-            self.assertEqual([e['stage'] for e in events],['fetch','parse','parse','word','done'])
+            self.assertEqual(events[0]['stage'], 'fetch')
+            self.assertEqual(events[-1]['stage'], 'done')
+            self.assertIn('parse', [e['stage'] for e in events])
+            self.assertIn('word', [e['stage'] for e in events])
+            self.assertIn('pack', [e['stage'] for e in events])
+            for e in events:
+                if e.get('percent') is not None:
+                    self.assertGreaterEqual(e['percent'], 0)
+                    self.assertLessEqual(e['percent'], 100)
             import base64
             doc=Document(BytesIO(base64.b64decode(events[-1]['document'])))
             self.assertIn('正文不能刪','\n'.join(p.text for p in doc.paragraphs)+ '\n' + '\n'.join(cell.text for t in doc.tables for row in t.rows for cell in row.cells))
