@@ -16,12 +16,32 @@ SLOTS = BoundedSemaphore(2)
 
 def convert(url, emit):
     validate_url(url)
-    emit({'stage': 'fetch', 'message': '正在擷取公開分享頁…'})
-    # extract_url owns fetching, parsing and normalization; no duplicate pipeline.
-    model = extract_url(url, on_fetched=lambda: emit({'stage': 'parse', 'message': '正在解析資料並核對目前分支…'}))
-    emit({'stage': 'parse', 'message': '解析完成，正在核對分支與統計。', 'report': model['report']})
-    emit({'stage': 'word', 'message': '正在產生可編輯的 Word…'})
-    data = build_docx(model, rich=True)
+    last = {}
+    def progress(stage, current, total):
+        # Throttle repeated reports, never invent a denominator.
+        value = int(current * 100 / total) if total else None
+        key = (value, current == total if total else False)
+        if last.get(stage) == key:
+            return
+        last[stage] = key
+        detail = ('%s / %s' % (current, total)) if total else ('已接收 %s 位元組' % current)
+        emit({'stage': stage, 'message': {
+            'fetch': '正在擷取分享頁…',
+            'parse': '正在解析對話…',
+            'word': '正在產生 Word…'}[stage], 'current': current,
+            'total': total, 'percent': value, 'detail': detail})
+    emit({'stage': 'fetch', 'message': '正在連線取得分享頁…', 'percent': None})
+    model = extract_url(
+        url,
+        on_fetched=lambda: emit({'stage': 'parse', 'message': '正在解析資料串流…', 'percent': None}),
+        on_download_progress=lambda current, total: progress('fetch', current, total),
+        on_parse_progress=lambda current, total: progress('parse', current, total))
+    emit({'stage': 'parse', 'message': '對話解析完成', 'percent': 100,
+          'current': model['report']['raw_nodes'], 'total': model['report']['raw_nodes']})
+    emit({'stage': 'word', 'message': '正在排版 Word…', 'percent': None})
+    data = build_docx(model, rich=True,
+                      on_progress=lambda current, total: progress('word', current, total))
+    emit({'stage': 'pack', 'message': '正在準備下載檔案…', 'percent': None})
     emit({'stage': 'done', 'message': 'Word 已產生，請先查看完整性報告。',
           'report': model['report'], 'filename': filename_for(model['title']),
           'document': base64.b64encode(data).decode('ascii')})
