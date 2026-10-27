@@ -32,6 +32,24 @@ ChatKeep 是公開開發的 ChatGPT 對話典藏工具：使用者貼上**公開
 
 以上是工作階段而非固定 PR 數量；詳見 [開發計畫與驗收](docs/PLAN.md)。
 
-**現況**：已確認第三方 GPT Export 可匯出研究用 JSON；ChatKeep 自行從分享頁擷取**仍未經端到端實測成功**，也尚無正式網站。GitHub Pages 只提供靜態前端，必要時須評估後端／Serverless；不得誤稱可單靠 Pages 繞過跨來源限制。使用開源解析器前需核對授權。
+**現況**：第 1-1～4-1 批已完成第 5-1 批本機整合檢查與修復，包含安全擷取、共用 JSON、原生 Word 元件／排版、即時進度、自訂檔名與桌機／手機網頁。指定來源仍為 1,183 筆記錄、720 則可匯出訊息；原文逐字核對與閱讀版／LibreOffice 渲染另行驗證。**研究 JSON 尚未完成逐訊息比對，不能宣稱正式發布條件全數通過。** 詳細證據、限制、部署費用及 Actions 說明集中於 [第 5-1 批](docs/BATCH_5-1.md)。尚未合併或發布；GitHub Pages 不能承載 Python 後端。
+
+## 本機啟動
+
+需要 Python 3.10+：
+
+```sh
+python -m venv .venv
+. .venv/bin/activate
+python -m pip install -r requirements.txt
+python server.py
+```
+
+在執行機器開啟 http://127.0.0.1:8000 ，貼上公開分享連結，查看統計與警告後下載 Word。對話只在請求記憶體中處理，不保存於伺服器、不記錄正文。正式 WSGI 啟動可用 `gunicorn --config gunicorn.conf.py server:application`；`render.yaml` 只是準備，不代表已部署。這是本機驗證版；若在遠端環境執行，需使用該環境支援的預覽／轉送方式。
+
+```sh
+python -m unittest discover -s tests -v
+```
+
 
 本專案獨立於 `franksky1207/rpg`，不得修改《文明戰線》。

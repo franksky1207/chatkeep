@@ -1,0 +1,19 @@
+# Local private conversations and saved pages
+*.private.json
+conversation.json
+dialog.json
+dialog.docx
+*.saved.html
+*.private.html
+__pycache__/
+*.py[cod]
+.venv/
+.env
+.env.*
+# Generated exports, browser artifacts and runtime data (synthetic fixtures are code)
+*.docx
+*.json
+*.html
+!web/index.html
+!tests/fixtures/*.html
+.playwright/
