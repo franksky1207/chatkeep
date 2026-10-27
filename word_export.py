@@ -6,6 +6,7 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Pt
 from rich_word import render_message
+from word_layout import configure, polish_tables
 
 
 class ExportError(ValueError):
@@ -29,14 +30,7 @@ def _check_xml(text):
 def build_docx(model, rich=True):
     if model.get('schema_version') != '1.0' or not model.get('messages'):
         raise ExportError('沒有可匯出的標準化訊息。')
-    document = Document()
-    style = document.styles['Normal']
-    style.font.name = 'Calibri'
-    style.font.size = Pt(11)
-    fonts = style.element.get_or_add_rPr()
-    east_asia = OxmlElement('w:rFonts')
-    east_asia.set(qn('w:eastAsia'), 'Microsoft JhengHei')
-    fonts.append(east_asia)
+    document = configure(Document())
     title = str(model['title'])
     _check_xml(title)
     document.add_heading(title, 0)
@@ -59,6 +53,7 @@ def build_docx(model, rich=True):
             document.add_paragraph().add_run(text)
         if message.get('category') == 'non_text':
             document.add_paragraph('［此訊息含未還原的非文字內容；以上保留可取得文字。］')
+    polish_tables(document)
     data = BytesIO()
     document.save(data)
     return data.getvalue()
