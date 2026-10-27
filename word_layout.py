@@ -144,3 +144,12 @@ def polish_tables(document, available_twips=None):
                 for paragraph in cell.paragraphs:
                     paragraph.paragraph_format.space_after = Pt(1)
                     paragraph.paragraph_format.line_spacing = 1.2
+
+    # ECMA-376 table-cell content must finish with a paragraph after nested tables.
+    # python-docx adds this when a table is created in a cell, but earlier
+    # rich rendering can remove the initially empty paragraph. Microsoft Word
+    # then presents a recovery dialog even if LibreOffice tolerates the file.
+    if hasattr(document, '_tc'):
+        children = list(document._tc)
+        if children and children[-1].tag != qn('w:p'):
+            document.add_paragraph()
