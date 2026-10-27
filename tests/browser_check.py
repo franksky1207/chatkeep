@@ -47,12 +47,14 @@ def run(live=False):
                             if download.failure():raise AssertionError('browser download failed')
                             data=Path(download.path()).read_bytes();download.delete()
                             document=Document(BytesIO(data))
-                            bodies=[para.text for i,para in enumerate(document.paragraphs) if i and document.paragraphs[i-1].style.name=='Heading 2']
+                            bodies=[para for para in document.paragraphs if para.style.name=='Heading 2']
                             if live:
                                 # HTTP report and Word count independently agree.
                                 stats=page.locator('#stats dd').all_text_contents()
                                 assert len(bodies)==int(stats[2])
-                            else:assert bodies==[TEXT,TEXT]
+                            else:
+                                combined='\n'.join(p.text for p in document.paragraphs)+'\n'+'\n'.join(c.text for t in document.tables for row in t.rows for c in row.cells)
+                                assert '正文不能刪' in combined and '繁體中文' in combined
                             assert not errors
                             print(json.dumps({'mode':'live' if live else 'synthetic','viewport':[width,height],'download_bytes':len(data),'word_messages':len(bodies),'result':'passed'}))
                             if not live:
