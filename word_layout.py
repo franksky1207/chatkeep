@@ -1,12 +1,12 @@
 """Reusable, editable Word reading layout. No image rasterization or page-per-turn."""
-from docx.shared import Cm, Pt, RGBColor
+from docx.shared import Cm, Pt, RGBColor, Twips
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.style import WD_STYLE_TYPE
 from docx.enum.table import WD_TABLE_ALIGNMENT, WD_CELL_VERTICAL_ALIGNMENT
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 
-FONT = "Microsoft JhengHei"
+FONT = "Noto Sans CJK TC"
 
 def _font(style, size, color=None, bold=False):
     style.font.name = FONT
@@ -107,14 +107,40 @@ def configure(document):
     _field(footer, "PAGE")
     return document
 
-def polish_tables(document):
+def polish_tables(document, available_twips=None):
+    if available_twips is None:
+        section = document.sections[0]
+        available_twips = (section.page_width - section.left_margin - section.right_margin) // 635
     for table in document.tables:
-        table.alignment = WD_TABLE_ALIGNMENT.CENTER
+        # Cell.add_table initially uses the full cell width, including padding.
+        # Explicitly constrain both preferred width and grid to the parent's
+        # *content* width. Older Writer versions otherwise clip nested cells.
+        table.alignment = WD_TABLE_ALIGNMENT.LEFT
         table.autofit = False
+        width = int(available_twips)
+        preferred = table._tbl.tblPr.find(qn('w:tblW'))
+        preferred.set(qn('w:type'), 'dxa')
+        preferred.set(qn('w:w'), str(width))
+        count = len(table.columns)
+        widths = [width // count + (1 if i < width % count else 0) for i in range(count)]
+        for column, allocated in zip(table.columns, widths):
+            column.width = Twips(allocated)
         _keep_rows(table)
         for row in table.rows:
-            for cell in row.cells:
-                polish_tables(cell)
+            for index, cell in enumerate(row.cells):
+                allocated = widths[index]
+                cell.width = Twips(allocated)
+                margin = min(100, max(0, (allocated - 200) // 2))
+                tcpr = cell._tc.get_or_add_tcPr()
+                margins = tcpr.find(qn('w:tcMar'))
+                if margins is None:
+                    margins = OxmlElement('w:tcMar'); tcpr.append(margins)
+                for side, amount in [('left', margin), ('right', margin), ('top', 40), ('bottom', 40)]:
+                    child = margins.find(qn('w:' + side))
+                    if child is None:
+                        child = OxmlElement('w:' + side); margins.append(child)
+                    child.set(qn('w:w'), str(amount)); child.set(qn('w:type'), 'dxa')
+                polish_tables(cell, allocated - 2 * margin)
                 for paragraph in cell.paragraphs:
                     paragraph.paragraph_format.space_after = Pt(1)
                     paragraph.paragraph_format.line_spacing = 1.2

@@ -3,6 +3,7 @@
 No screenshots; all text is native Word runs or table cell content.
 """
 import re
+import textwrap
 from docx.shared import Pt, RGBColor
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
@@ -162,6 +163,9 @@ def render(document, node):
             render_nodes(document, node.children)
     elif kind in ("col", "caption", "text", "bold", "italic"):
         value = flatten(node)
+        # JSX indentation/blank source lines are layout syntax, not empty visual
+        # text. Preserve meaningful line breaks and every non-whitespace character.
+        value = '\n'.join(line.rstrip() for line in textwrap.dedent(value).splitlines() if line.strip())
         p = document.add_paragraph()
         r = p.add_run(value)
         if kind=="caption": r.font.size=Pt(9); r.font.color.rgb=RGBColor(100,110,110)

@@ -28,11 +28,13 @@ jobs:
             requirements-dev.txt
       - name: Install Python dependencies once
         run: python -m pip install -r requirements-dev.txt
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
+        id: browser-cache
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('requirements-dev.txt') }}
       - name: Install browser and document QA dependencies
+        id: qa-install
         run: |
           python -m playwright install-deps chromium webkit
           sudo apt-get install -y --no-install-recommends libreoffice-writer fonts-noto-cjk
@@ -62,3 +64,10 @@ jobs:
         if: ${{ !cancelled() && inputs.include_live }}
         run: python tests/production_check.py --live
       # No real HTML, JSON, Word, PDF, screenshots or traces are uploaded.
+
+      - name: Preserve browser cache even when a real acceptance check fails
+        if: ${{ !cancelled() && steps.qa-install.outcome == 'success' && steps.browser-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('requirements-dev.txt') }}

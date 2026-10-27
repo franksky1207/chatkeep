@@ -47,12 +47,28 @@ class ContentAcceptance(unittest.TestCase):
                 doc=Document(BytesIO(build_docx(model(source))))
                 for token in tokens:self.assertIn(token,document_text(doc))
 
+    def test_nested_table_grid_fits_parent_content_width(self):
+        doc=Document(BytesIO(build_docx(model('<box><row><col><box>左側</box></col><col><box>右側</box></col></row></box>'))))
+        def check(container, available):
+            for table in container.tables:
+                self.assertLessEqual(sum(col.width.twips for col in table.columns),available)
+                for row in table.rows:
+                    for cell in row.cells:
+                        margins=cell._tc.tcPr.find(qn('w:tcMar'))
+                        padding=sum(int(margins.find(qn('w:'+side)).get(qn('w:w'))) for side in ['left','right'])
+                        check(cell,cell.width.twips-padding)
+        check(doc,9128)
+
     def test_one_column_row_keeps_children_in_flow_not_one_indented_cell(self):
         source='<box><row>\n  <box>\n    <text>正文甲</text>\n    <caption>正文乙</caption>\n  </box>\n</row></box>'
         doc=Document(BytesIO(build_docx(model(source))))
         self.assertEqual(document_text(doc).count('正文甲'),1)
         self.assertEqual(document_text(doc).count('正文乙'),1)
         self.assertEqual(len(list(doc.element.body.iter(qn('w:br')))),0)
+        padded=Document(BytesIO(build_docx(model('<box><text>\n    正文甲\n\n    正文乙\n</text></box>'))))
+        self.assertIn('正文甲',document_text(padded))
+        self.assertIn('正文乙',document_text(padded))
+        self.assertEqual(len(list(padded.element.body.iter(qn('w:br')))),1)
 
     def test_self_closing_text_and_box_values_are_not_empty(self):
         doc=Document(BytesIO(build_docx(model('<text value="文字甲"/><box value="文字乙"/>'))))

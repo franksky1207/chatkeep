@@ -37,3 +37,5 @@ HTTP report 增加 `rendering_status`（rendered／partial）及 `rendering_warn
 進度只計實際下載 bytes、已處理節點／訊息；pack 在實際存檔前發出且不帶百分比。完成前沒有下載檔名欄位。伺服器與前端檔名均限制 100 Unicode codepoints／200 UTF-8 bytes，處理帶副檔名的 Windows 保留名稱；使用者主檔名固定補 .docx，不改 Word 內容。
 
 部署與資源上限、可重現驗收及未通過事項集中於 [BATCH_5-1](BATCH_5-1.md)。
+
+第 5-1 補修固定參考字型為 Noto Sans CJK TC，避免未安裝 Microsoft JhengHei 時各平台任意替代；未安裝該字型的終端仍可能使用系統 fallback，不能承諾像素相同。巢狀表格的 grid、preferred width、cell width 依父內容寬度（扣除 padding）配置。UI 文字只清理 JSX 純縮排／空行，保留每個非空白字元及有意義的行序；原始 JSON／原文 Word 不改寫。
