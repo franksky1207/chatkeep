@@ -45,7 +45,7 @@ def run():
         compared+=1
     roles=Counter(n['message']['author']['role'] for n in raw if n.get('message'))
     assert dict(roles)==model['report']['roles']
-    data=build_docx(model)
+    data=build_docx(model, rich=False)
     doc=Document(BytesIO(data))
     bodies=[p.text for i,p in enumerate(doc.paragraphs) if i and doc.paragraphs[i-1].style.name=='Heading 2']
     assert bodies==[m['text'] for m in model['messages']]
