@@ -48,6 +48,8 @@ def _field(paragraph, instruction):
 
 def configure(document):
     section = document.sections[0]
+    section.page_width = Cm(21)
+    section.page_height = Cm(29.7)
     section.top_margin = Cm(2.2)
     section.bottom_margin = Cm(2.0)
     section.left_margin = Cm(2.45)
