@@ -35,5 +35,19 @@ class WordLayoutTests(unittest.TestCase):
         self.assertEqual(sum(p.style.name == "Heading 2" for p in doc.paragraphs), 600)
         self.assertNotIn('w:type="page"', doc._body._body.xml)
 
+    def test_nested_table_cells_end_with_paragraph_for_microsoft_word(self):
+        source = fixture()
+        source["messages"] = [{
+            "role": "assistant",
+            "text": "<box><row><col><box>內層左欄</box></col><col><box>內層右欄</box></col></row></box>"
+        }]
+        doc = Document(BytesIO(build_docx(source)))
+        from docx.oxml.ns import qn
+        cells = [tc for table in doc.tables for tc in table._tbl.iter(qn("w:tc"))]
+        self.assertTrue(cells)
+        for cell in cells:
+            self.assertEqual(cell[-1].tag, qn("w:p"),
+                             "Word requires a paragraph after a nested table")
+
 if __name__ == "__main__":
     unittest.main()
