@@ -32,7 +32,7 @@ def validate_url(url):
         raise ExtractionError("Only public https://chatgpt.com/share/<uuid> URLs are allowed")
     return url
 
-def fetch_html(url, timeout=30, max_bytes=20_000_000):
+def fetch_html(url, timeout=30, max_bytes=20_000_000, on_progress=None):
     """Anonymous HTTPS only; no cookies, scripts, cross-origin or off-path redirects."""
     validate_url(url)
     class RedirectGuard(urllib.request.HTTPRedirectHandler):
@@ -64,6 +64,8 @@ def fetch_html(url, timeout=30, max_bytes=20_000_000):
                 if total > max_bytes:
                     raise ExtractionError("HTML exceeds permitted size")
                 chunks.append(chunk)
+                if on_progress:
+                    on_progress(total, int(length) if length else None)
             if length and total != int(length):
                 raise ExtractionError("HTML 下載不完整")
         return b"".join(chunks).decode("utf-8")
@@ -282,13 +284,15 @@ def _content(content):
     return "\n".join(texts), unsupported
 
 
-def normalize(conversation, source_url=""):
+def normalize(conversation, source_url="", on_progress=None):
     nodes, total_nodes, branch_source = _branch(conversation)
     records, messages, issues = [], [], []
     categories, roles, text_roles = Counter(), Counter(), Counter()
     content_type_roles = {}
     seen_ids = set()
     for index, node in enumerate(nodes):
+        if on_progress and (index % 25 == 0 or index == len(nodes) - 1):
+            on_progress(index + 1, len(nodes))
         if not isinstance(node, dict):
             raise ExtractionError("Invalid conversation node")
         message = node.get("message") if "message" in node else (node if "content" in node or "text" in node else None)
@@ -376,9 +380,9 @@ def normalize(conversation, source_url=""):
                        "verified_against_live_page": False, "reference_comparison": "not_performed"}}
 
 
-def parse_html(html, url=""):
+def parse_html(html, url="", on_progress=None):
     try:
-        result = normalize(find_conversation(hydrate(extract_stream(html))), url)
+        result = normalize(find_conversation(hydrate(extract_stream(html))), url, on_progress=on_progress)
         # Guarantee the single public model is strict JSON, including raw content.
         json.dumps(result, ensure_ascii=False, allow_nan=False)
         return result
@@ -388,11 +392,11 @@ def parse_html(html, url=""):
         raise ExtractionError("來源資料無法安全表示為標準 JSON") from exc
 
 
-def extract_url(url, on_fetched=None):
-    html = fetch_html(url)
+def extract_url(url, on_fetched=None, on_download_progress=None, on_parse_progress=None):
+    html = fetch_html(url, on_progress=on_download_progress)
     if on_fetched:
         on_fetched()
-    result = parse_html(html, url)
+    result = parse_html(html, url, on_progress=on_parse_progress)
     result["provenance"] = {"retrieved_at": datetime.now(timezone.utc).isoformat(),
                             "html_bytes": len(html.encode("utf-8")),
                             "html_sha256": hashlib.sha256(html.encode("utf-8")).hexdigest(),
