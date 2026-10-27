@@ -5,6 +5,7 @@ from docx import Document
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Pt
+from rich_word import render_message
 
 
 class ExportError(ValueError):
@@ -25,7 +26,7 @@ def _check_xml(text):
         raise ExportError('來源含 Word 無法保存的控制字元；未產生可能缺字的文件。')
 
 
-def build_docx(model):
+def build_docx(model, rich=True):
     if model.get('schema_version') != '1.0' or not model.get('messages'):
         raise ExportError('沒有可匯出的標準化訊息。')
     document = Document()
@@ -52,7 +53,10 @@ def build_docx(model):
         _check_xml(text)
         # Raw Markdown/UI code is intentionally literal at stage 1-2. Word native
         # runs preserve editable text, tabs and line breaks, with no truncation.
-        document.add_paragraph().add_run(text)
+        if rich:
+            render_message(document, text)
+        else:
+            document.add_paragraph().add_run(text)
         if message.get('category') == 'non_text':
             document.add_paragraph('［此訊息含未還原的非文字內容；以上保留可取得文字。］')
     data = BytesIO()
