@@ -148,7 +148,7 @@ class NetworkTests(unittest.TestCase):
 class WordTests(unittest.TestCase):
     def test_reopen_and_exact_text_order(self):
         model=parse_html(html_for())
-        content=build_docx(model)
+        content=build_docx(model, rich=False)
         doc=Document(BytesIO(content))
         bodies=[p.text for i,p in enumerate(doc.paragraphs) if i and doc.paragraphs[i-1].style.name=='Heading 2']
         self.assertEqual(bodies,[TEXT,TEXT])
@@ -159,7 +159,7 @@ class WordTests(unittest.TestCase):
         # 1,200 messages; >1M Unicode characters, alternating roles.
         texts=[('%04d 中文😀\n<box>完整正文</box>\n'%i)*50 for i in range(1200)]
         model=normalize(fixture([message(str(i),'user' if i%2==0 else 'assistant',t) for i,t in enumerate(texts)]))
-        doc=Document(BytesIO(build_docx(model)))
+        doc=Document(BytesIO(build_docx(model, rich=False)))
         bodies=[p.text for i,p in enumerate(doc.paragraphs) if i and doc.paragraphs[i-1].style.name=='Heading 2']
         self.assertEqual(bodies,texts)
 
@@ -167,7 +167,7 @@ class WordTests(unittest.TestCase):
         self.assertEqual(filename_for('../CON/\\?'), '_CON___' + '.docx')
         self.assertEqual(filename_for('CON'),'_CON.docx')
         model=normalize(fixture([message('a',text='bad\x00text')]))
-        with self.assertRaises(ExportError):build_docx(model)
+        with self.assertRaises(ExportError):build_docx(model, rich=False)
 
 
 class HTTPTests(unittest.TestCase):
@@ -186,7 +186,7 @@ class HTTPTests(unittest.TestCase):
             self.assertEqual([e['stage'] for e in events],['fetch','parse','parse','word','done'])
             import base64
             doc=Document(BytesIO(base64.b64decode(events[-1]['document'])))
-            self.assertIn(TEXT,[p.text for p in doc.paragraphs])
+            self.assertIn('正文不能刪','\n'.join(p.text for p in doc.paragraphs)+ '\n' + '\n'.join(cell.text for t in doc.tables for row in t.rows for cell in row.cells))
             self.assertEqual(response.headers['Cache-Control'],'no-store')
     def test_error_not_success(self):
         with patch('chatkeep.fetch_html',side_effect=ExtractionError('擷取逾時')),self.post({'url':URL}) as response:
