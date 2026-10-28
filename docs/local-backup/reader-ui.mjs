@@ -1,6 +1,6 @@
-import {wordLikeCount} from './reader-core.mjs';
+import {zipFiles,safeHtmlName} from './reader-export.mjs';
 const $=id=>document.getElementById(id);
-let instance=null,sequence=0,active=null,page=0,searchTimer=null;
+let instance=null,sequence=0,active=null,page=0,searchTimer=null,copyPlan=null,copyIndex=0,exporting=false;
 const pending=new Map();
 function ask(type,args={}){
   return new Promise((resolve,reject)=>{
@@ -84,10 +84,57 @@ async function showPage(next){
 }
 export function mountReader({extract,isBusy}){
   function close(){
+    copyPlan=null;copyIndex=0;$('reader-copy-controls').hidden=true;$('reader-export-status').textContent='';
     if(instance){instance.terminate();instance=null;}
     for(const p of pending.values())p.reject(Error('閱讀器已關閉'));pending.clear();active=null;
     $('reader-panel').hidden=true;$('reader-messages').replaceChildren();$('reader-hits').replaceChildren();
   }
+  function downloadable(blob,name){
+    const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=name;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
+  }
+  $('reader-copy-plan').addEventListener('click',async()=>{
+    if(!active)return;
+    try{const plan=await ask('copyPlan');copyPlan=plan.chunks;copyIndex=0;
+      $('reader-copy-controls').hidden=false;updateCopy();
+    }catch(e){$('reader-export-status').textContent='無法準備複製：'+e.message;}
+  });
+  function updateCopy(){
+    if(!copyPlan)return;
+    const chunk=copyPlan[copyIndex];
+    $('reader-copy-info').textContent='第 '+(copyIndex+1)+'／'+copyPlan.length+' 批 · 訊息 '+(chunk.start+1)+'～'+(chunk.start+chunk.count)+'／'+active.count;
+    $('reader-copy-next').disabled=copyIndex>=copyPlan.length-1;
+    $('reader-copy-prev').disabled=copyIndex===0;
+  }
+  $('reader-copy-next').addEventListener('click',()=>{if(copyPlan&&copyIndex<copyPlan.length-1){copyIndex++;updateCopy();}});
+  $('reader-copy-prev').addEventListener('click',()=>{if(copyPlan&&copyIndex>0){copyIndex--;updateCopy();}});
+  $('reader-copy-current').addEventListener('click',async()=>{
+    if(!copyPlan)return;
+    try{
+      const data=await ask('copyChunk',{index:copyIndex});
+      if(!navigator.clipboard?.write||!window.ClipboardItem)throw Error('瀏覽器不支援含格式剪貼簿，請下載 HTML');
+      await navigator.clipboard.write([new ClipboardItem({'text/html':new Blob([data.payload.html],{type:'text/html'}),'text/plain':new Blob([data.payload.text],{type:'text/plain'})})]);
+      $('reader-export-status').textContent='第 '+(copyIndex+1)+' 批已複製到剪貼簿，請貼入 Word 後再選下一批。網站無法確認 Word 貼上結果。';
+    }catch(e){$('reader-export-status').textContent='複製失敗：'+e.message;}
+  });
+  $('reader-html-download').addEventListener('click',async()=>{
+    if(!active||exporting)return;exporting=true;$('reader-html-download').disabled=true;
+    try{
+      const plan=await ask('htmlPlan');
+      if(!plan.volumes.length)throw Error('沒有可匯出的正文');
+      if(plan.volumes.length>300)throw Error('分卷數量過多，請改用較小的來源');
+      const files=[];
+      for(let i=0;i<plan.volumes.length;i++){
+        $('reader-export-status').textContent='正在產生 HTML 第 '+(i+1)+'／'+plan.volumes.length+' 卷';
+        const v=await ask('htmlVolume',{index:i});
+        if(v.count!==plan.volumes[i].count||v.start!==plan.volumes[i].start)throw Error('分卷範圍驗證失敗');
+        files.push({name:safeHtmlName(active.title)+(plan.volumes.length>1?'_part'+String(i+1).padStart(3,'0'):'')+'.html',content:v.html});
+      }
+      if(files.length===1)downloadable(new Blob([files[0].content],{type:'text/html;charset=utf-8'}),files[0].name);
+      else downloadable(zipFiles(files),safeHtmlName(active.title)+'_HTML.zip');
+      $('reader-export-status').textContent='已啟動 '+files.length+' 卷 HTML 下載；請確認瀏覽器已保存。';
+    }catch(e){$('reader-export-status').textContent='HTML 下載失敗：'+e.message;}
+    finally{exporting=false;$('reader-html-download').disabled=false;}
+  });
   $('reader-close').addEventListener('click',close);
   $('reader-prev').addEventListener('click',()=>void showPage(page-1));
   $('reader-next').addEventListener('click',()=>void showPage(page+1));
