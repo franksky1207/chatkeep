@@ -13,10 +13,11 @@
 <header class="site-header"><p class="eyebrow">CHATKEEP</p><h1>ChatKeep｜對話收藏</h1><p class="lead">將 ChatGPT 公開分享連結，或官方備份中指定的對話，收藏成可編輯的 Word。</p></header>
 <section class="service-notice" aria-labelledby="service-title">
 <h2 id="service-title">轉換服務</h2><p id="service-status" role="status" aria-live="polite">開發預覽版：尚未設定新版轉換服務。你仍可在本機搜尋備份、下載原始 JSON。</p>
+<p class="note">新版 Render 尚待手動部署及正式跨站驗證，Word 轉換可能暫時無法使用。本機備份索引、搜尋與原始 JSON 下載仍可使用。</p>
 <details id="service-settings"><summary>開發與測試設定</summary><div class="details-body">
 <label for="api-base">轉換服務網址（開發／測試）</label><input id="api-base" type="url" placeholder="http://localhost:8000" autocomplete="off" spellcheck="false" aria-describedby="api-help">
 <p id="api-help" class="note">僅填入你信任的本機或核准測試服務。私人內容會送往此網址。只接受 HTTPS，或本機 localhost 的 HTTP。設定只保留在本分頁，不會自動測試連線。</p>
-<p class="note">目前正式 Render v1.0.0 尚未部署新版轉換功能，本預覽版不預設連線正式服務。未來正式服務將由發布設定指定，一般使用者無須設定網址。</p>
+<p class="note">預設使用 https://chatkeep.onrender.com，一般使用者無須設定網址；填入其他網址只影響本分頁，不代表該服務已通過驗證。</p>
 </div></details>
 </section>
 <div class="mode-tabs" role="tablist" aria-label="選擇對話來源">
