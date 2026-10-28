@@ -59,6 +59,15 @@
 <div id="results" role="list" aria-label="目前搜尋結果"></div>
 <nav class="pagination" aria-label="搜尋結果分頁"><button id="results-prev" class="secondary" type="button">上一頁結果</button><span id="results-page"></span><button id="results-next" class="secondary" type="button">下一頁結果</button></nav>
 <div id="preview" class="preview" hidden tabindex="-1" role="region" aria-label="索引預覽"></div></section>
+<section class="panel" id="reader-panel" hidden aria-labelledby="reader-title">
+<div class="actions"><h2 id="reader-title">本機 HTML 閱讀版</h2><button id="reader-close" class="secondary" type="button">關閉閱讀版</button></div>
+<p class="note">此功能完全在瀏覽器本機執行，不會傳送到 Render。第一批提供閱讀與搜尋；含格式全文複製和 HTML 下載留待第二批。</p>
+<p id="reader-status" role="status" aria-live="polite"></p><p id="reader-scope" class="note"></p>
+<label for="reader-search">搜尋此對話全部主線正文</label><input id="reader-search" type="search" placeholder="搜尋正文內容">
+<div id="reader-hits" class="reader-hits" aria-live="polite"></div>
+<nav class="pagination" aria-label="閱讀分頁"><button id="reader-prev" class="secondary" type="button">上一頁</button><span id="reader-page"></span><button id="reader-next" class="secondary" type="button">下一頁</button></nav>
+<div id="reader-messages"></div>
+</section>
 <section class="panel" id="export" aria-labelledby="selected-title" hidden><h2 id="selected-title" tabindex="-1">3．已選清單與轉換</h2><p id="count" role="status" aria-live="polite"></p><p id="selection-scope" class="note"></p><div id="selected-results" role="list" aria-label="已勾選的對話"></div>
 <nav class="pagination" aria-label="已選清單分頁"><button id="selected-prev" class="secondary" type="button">上一頁已選</button><span id="selected-page"></span><button id="selected-next" class="secondary" type="button">下一頁已選</button></nav>
 <div class="actions"><button id="convert-selected" type="button">轉換選取對話為 Word</button><button id="deselect" type="button" class="quiet">清除全部選取</button></div>
