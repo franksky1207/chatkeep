@@ -9,6 +9,9 @@ from conversation_export import export_conversation, envelope
 
 
 def result(body, mode='official'):
+    if mode == 'chunk':
+        from chunk_transfer import convert_chunk
+        return convert_chunk(body)
     if mode == 'share':
         from chatkeep import extract_url, validate_url
         payload = json.loads(body)

@@ -19,7 +19,8 @@ def handle(env, start_response, headers, slots, rates, mode='official'):
     def respond(status, value):
         body = json.dumps(value, ensure_ascii=False, allow_nan=False).encode('utf-8')
         start_response('%d %s' % (status, HTTPStatus(status).phrase), headers + [
-            ('Content-Type', 'application/json; charset=utf-8'), ('Content-Length', str(len(body)))])
+            ('Content-Type', 'application/json; charset=utf-8'), ('Content-Length', str(len(body)))] +
+            ([('Retry-After', '60' if value.get('error', {}).get('code') == 'RATE_LIMITED' else '2')] if status == 429 else []))
         return [body]
 
     def error(status, code, message):

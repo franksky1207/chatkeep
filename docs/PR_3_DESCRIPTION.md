@@ -29,4 +29,16 @@ ChatKeep v1.1.0 開發分支：GitHub Pages 在瀏覽器本機索引、搜尋及
 
 完整 API 契約、容量分類、測試命令／環境／CPU／RSS 數據與未驗證事項見 `docs/BATCH_5_LONG_CONVERSATIONS.md`。Render Free CPU 可能較慢而逾時；新版同步 API 不保證所有斷線立即取消，最遲以 45 秒／資源期限結束。忙碌時提早拒絕大型上傳可能呈現網路錯誤；Pages／跨站 CORS／下載及取消整合留第 6 批，**尚未開始**。真實備份、手機／桌機、Microsoft Word 與正式 Render 驗收統一留第 8 批。
 
+## 第 5-1 批：大型選取對話有界衍生傳輸
+
+- 採免費 Render 優先方案 A：選取對話在獨立本機 worker 驗證 current_node／parent／分類，最小化為有版本、可核對的有效訊息封包；不傳未知 metadata、隱藏／工具本文或非當前分支。原始 Blob.slice JSON 擷取／下載不變；小型仍走 `/api/convert-json`。
+- 新 `/api/convert-chunk-v1` 每次仍 ≤2 MB，沿用 SLOTS／RateLimit、384 MiB AS、30/31 秒 CPU、45 秒 wall、10 秒接收期限。沒有 session／私人跨請求 dict／暫存檔；伺服器只確認本批，complete=false、chunk_complete=true、source_verified_by_server=false。
+- manifest 綁定隨機 nonce、來源 id、全域順序／範圍／計數及 SHA-256。每批沿用 WordVolume，共用 Word 排版及批內分卷，全域訊息 bookmarks 保持連續；本機逐份驗證 hash／CRC／bookmarks，去重重試、拒絕混批／漏批／錯序後才發布完整 DOCX／ZIP。只有一份成果仍回單 DOCX。
+- 本機已選原始物件 ≤16 MB、≤5,000 原始節點；有效序列仍 ≤5,000 則／500 萬字元，單則 ≤100 萬字元；最多 16 批、500 訊息／批、最終合計 16 卷／16 MB，單則不能裝入封包或 Word 容量就明確失敗。順序傳輸至少 6.1 秒節流、429 依 Retry-After 有限重試；可取消／指定批重試。
+- **25 個 Node 測試通過**（16 個本批＋9 個原始擷取回歸），**91 個 Python 測試通過**（6 個本批＋85 個必要回歸）。跨語言 canonical vectors、原始 JSON 位元組保留、4 批有效中文、單批內分卷、混批／偽造 complete／損壞／跨批重複 ID、重試去重、worker／request 取消、timeout 與容量界線皆驗證。
+- 本機真實 Gunicorn：4,200,461 bytes 冗餘來源只送 989 bytes →單 DOCX；7,200,693 bytes 有效中文以 4 次約 1.80 MB HTTP POST →4 卷 ZIP，約 25.307 秒（含真實節流），全域序列核對完成。伺服器 RSS 程序樹峰值 126.8 MiB，Node 客戶端峰值 218 MiB；第 11 次 POST 真實回 429／Retry-After=60，未提高匿名額度。
+
+完整契約、固定 hash vectors、記憶體／CPU 觀察、來源與驗證範圍及未驗證事項見 `docs/BATCH_5_1_RESULT.md`。未開發第 6 批 UI／跨站 CORS／下載接線；Node worker-thread／Streams 測試不是 Safari、手機／桌機、Microsoft Word 或正式 Render Free 驗收，仍留第 8 批。大型單則／>16 MB 選取來源與成果／過多批卷仍有明確限制，取消 HTTP 亦不保證即時停止後端程序。
+
+
 本批沒有修改正式 Render v1.0.0、Render 部署設定、Pages UI 或 Actions，沒有觸發 Actions、合併 main、部署、啟用 Pages 或建立 Release。

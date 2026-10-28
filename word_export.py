@@ -74,8 +74,9 @@ def measure(elements):
 
 
 class WordVolume:
-    def __init__(self, model, rich=True, capacity=CAPACITY, check=None):
+    def __init__(self, model, rich=True, capacity=CAPACITY, check=None, message_offset=0):
         self.model, self.rich, self.capacity, self.check = model, rich, capacity, check
+        self.message_offset = message_offset
         self.document = configure(Document())
         title = str(model['title']); _check_xml(title)
         self.document.add_heading(title, 0)
@@ -119,9 +120,10 @@ class WordVolume:
         try:
             message = self.model['messages'][index]
             role = {'user': '使用者', 'assistant': 'ChatGPT'}.get(message['role'], message['role'])
-            paragraph = self.document.add_heading('%d · %s' % (index+1, role), 2)
-            start = OxmlElement('w:bookmarkStart'); start.set(qn('w:id'), str(index+1)); start.set(qn('w:name'), 'ChatKeepMessage_%d' % (index+1))
-            end = OxmlElement('w:bookmarkEnd'); end.set(qn('w:id'), str(index+1))
+            position = index + self.message_offset + 1
+            paragraph = self.document.add_heading('%d · %s' % (position, role), 2)
+            start = OxmlElement('w:bookmarkStart'); start.set(qn('w:id'), str(position)); start.set(qn('w:name'), 'ChatKeepMessage_%d' % position)
+            end = OxmlElement('w:bookmarkEnd'); end.set(qn('w:id'), str(position))
             paragraph._p.append(start); paragraph._p.append(end)
             text = message['text']; _check_xml(text)
             if self.rich:
@@ -140,7 +142,7 @@ class WordVolume:
             combined = tuple(a+b for a,b in zip(self.stats, current))
             if self._over(combined): raise VolumeFull()
             self.stats = combined
-            self.indices.append(index)
+            self.indices.append(index+self.message_offset)
             self.warnings.extend(pending_warnings)
         except BaseException:
             for element in added(): body.remove(element)
@@ -153,8 +155,9 @@ class WordVolume:
     def pack(self, number=1, multipart=False, on_pack=None):
         if self.check: self.check()
         if multipart:
-            self.document.paragraphs[0].text = '%s｜第%d卷' % (self.model['title'], number)
-            self.document.add_paragraph('第%d卷｜有效輸出訊息位置 %d–%d，共 %d 則。' % (number, self.indices[0]+1, self.indices[-1]+1, len(self.indices)))
+            label = self.model.get('volume_label_prefix','') + '第%d卷' % number
+            self.document.paragraphs[0].text = '%s｜%s' % (self.model['title'], label)
+            self.document.add_paragraph('%s｜有效輸出訊息位置 %d–%d，共 %d 則。' % (label, self.indices[0]+1, self.indices[-1]+1, len(self.indices)))
         if on_pack: on_pack()
         data = LimitedBuffer()
         self.document.save(data)

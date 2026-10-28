@@ -119,14 +119,14 @@ class Application:
             return [value]
         host = env.get('HTTP_HOST', '')
         if not valid_host(host):
-            if env.get('PATH_INFO') in ('/api/convert-json', '/api/convert-v2'):
+            if env.get('PATH_INFO') in ('/api/convert-json', '/api/convert-v2', '/api/convert-chunk-v1'):
                 return response('403 Forbidden', json.dumps({'ok': False, 'error': {
                     'code': 'HOST_FORBIDDEN', 'message': '主機不在允許清單。'}}, ensure_ascii=False).encode())
             return response('403 Forbidden', '主機不在允許清單。')
         method, path = env.get('REQUEST_METHOD'), env.get('PATH_INFO')
-        if path in ('/api/convert-json', '/api/convert-v2'):
+        if path in ('/api/convert-json', '/api/convert-v2', '/api/convert-chunk-v1'):
             from json_api import handle
-            return handle(env, start_response, HEADERS, SLOTS, self.rates, mode='share' if path == '/api/convert-v2' else 'official')
+            return handle(env, start_response, HEADERS, SLOTS, self.rates, mode='share' if path == '/api/convert-v2' else 'chunk' if path == '/api/convert-chunk-v1' else 'official')
         files = {'/': ('index.html', 'text/html; charset=utf-8'),
                  '/app.js': ('app.js', 'text/javascript; charset=utf-8'),
                  '/style.css': ('style.css', 'text/css; charset=utf-8')}

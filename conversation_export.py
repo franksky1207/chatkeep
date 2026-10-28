@@ -35,7 +35,7 @@ def verify_docx(data, first, last):
 
 
 def export_conversation(model, source, source_report=None, capacity=CAPACITY, allow_zip=True,
-                        on_progress=None, on_pack=None, check=None, strict=True, rich=True, warnings_out=None):
+                        on_progress=None, on_pack=None, check=None, strict=True, rich=True, warnings_out=None, message_offset=0, file_tag=''):
     validate_model(model)
     messages = model['messages']; total = len(messages)
     if strict and (any(m.get('category') == 'non_text' or 'content' in m and not supported_text_content(m['content']) for m in messages) or
@@ -67,7 +67,7 @@ def export_conversation(model, source, source_report=None, capacity=CAPACITY, al
             if check: check()
             if len(parts) >= MAX_VOLUMES:
                 raise ExportError('分卷數超過 16 卷資源限制。', 'VOLUME_LIMIT')
-            volume = WordVolume(model, rich=rich, capacity=capacity, check=check)
+            volume = WordVolume(model, rich=rich, capacity=capacity, check=check, message_offset=message_offset)
             first = cursor
             while cursor < total:
                 try: volume.add(cursor)
@@ -82,8 +82,8 @@ def export_conversation(model, source, source_report=None, capacity=CAPACITY, al
             multipart = bool(parts) or cursor < total
             number = len(parts)+1
             data = volume.pack(number, multipart, on_pack)
-            verify_docx(data, first+1, cursor)
-            entry = {'number': number, 'first_message': first+1, 'last_message': cursor,
+            verify_docx(data, first+1+message_offset, cursor+message_offset)
+            entry = {'number': number, 'first_message': first+1+message_offset, 'last_message': cursor+message_offset,
                      'message_count': cursor-first, 'sequence_sha256': digest(messages[first:cursor]),
                      'docx_bytes': len(data), 'structure': {'elements': volume.stats[0],
                       'xml_bytes': volume.stats[1], 'table_cells': volume.stats[2]}}
@@ -92,13 +92,13 @@ def export_conversation(model, source, source_report=None, capacity=CAPACITY, al
             if multipart:
                 # Suffix is appended AFTER sanitization/truncation so volume numbers cannot disappear.
                 stem = filename_for(model['title'])[:-5]
-                entry['filename'] = stem + '_第%d卷.docx' % number
+                entry['filename'] = stem + file_tag + '_第%d卷.docx' % number
                 if archive is None:
                     output = LimitedBuffer()
                     archive = ZipFile(output, 'w', compression=ZIP_STORED, allowZip64=False)
                 archive.writestr(entry['filename'], data)
             else:
-                entry['filename'] = filename_for(model['title'])
+                entry['filename'] = filename_for(model['title'])[:-5] + file_tag + '_第1卷.docx' if file_tag else filename_for(model['title'])
                 output = data
             parts.append(entry)
             # python-docx uses cyclic part references. Collect between volumes;
@@ -111,12 +111,12 @@ def export_conversation(model, source, source_report=None, capacity=CAPACITY, al
             with ZipFile(BytesIO(output)) as zipped:
                 if zipped.namelist() != [p['filename'] for p in parts] or zipped.testzip() is not None:
                     raise ExportError('分卷 ZIP 驗證失敗。', 'INTEGRITY_FAILED')
-        expected = 1
+        expected = message_offset+1
         for part in parts:
             if part['first_message'] != expected or part['last_message']-part['first_message']+1 != part['message_count']:
                 raise ExportError('分卷範圍不連續。', 'INTEGRITY_FAILED')
             expected = part['last_message']+1
-        if expected != total+1:
+        if expected != total+message_offset+1:
             raise ExportError('分卷訊息數不一致。', 'INTEGRITY_FAILED')
         if rendering_count:
             warnings.append({'code': 'RENDERING_LIMITATIONS', 'count': rendering_count,
@@ -127,7 +127,7 @@ def export_conversation(model, source, source_report=None, capacity=CAPACITY, al
                       sequence_sha256=digest(messages), integrity_basis='normalized_output_sequence',
                       status='converted_with_warnings' if warnings else 'converted')
         return {'artifact_type': 'zip' if len(parts)>1 else 'docx',
-                'filename': filename_for(model['title'])[:-5]+'_完整對話.zip' if len(parts)>1 else filename_for(model['title']),
+                'filename': filename_for(model['title'])[:-5]+file_tag+'_完整對話.zip' if len(parts)>1 else parts[0]['filename'],
                 'mime_type': 'application/zip' if len(parts)>1 else DOCX_MIME,
                 'data': output, 'report': report}
     finally:

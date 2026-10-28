@@ -1,6 +1,6 @@
 # ChatKeep v1.1.0｜第 5-1 批：大型選取對話傳輸與容量架構修正（Codex）
 
-狀態：**待 Codex 實作，非已完成**。已知第 5 批基準 commit：`73bd2ecda3c8f8ddf91f432d890421357b576b82`；執行時以遠端開發分支最新版為準。本批加入於第 5 與第 6 批之間，沿用 `feat/local-json-extractor`、Draft PR #3。第 8 批才做真實備份、手機／桌機、Word 與 Render Free 實機驗收。
+狀態：**Codex 技術實作及合成測試完成，待驗收，未部署**。已知第 5 批基準 commit：`73bd2ecda3c8f8ddf91f432d890421357b576b82`；執行時以遠端開發分支最新版為準。本批加入於第 5 與第 6 批之間，沿用 `feat/local-json-extractor`、Draft PR #3。第 8 批才做真實備份、手機／桌機、Word 與 Render Free 實機驗收。
 
 ## 一、確認的瓶頸及必守原則
 
@@ -51,3 +51,5 @@ B. 安全的暫時性串流／會話式服務端組卷（需 session TTL、配�
 - 使用 `feat/local-json-extractor`、現有 Draft PR #3，提交程式、測試及完整紀錄，新增 `docs/BATCH_5_1_RESULT.md` 記錄實際方案、容量邊界、測試量測與未完成事項。
 - 本批不改 main、不部署 Pages／Render、不建立 Release、不進第 6 批；不動 v1.0.0 正式站。
 - 完成後由 ChatGPT 驗收，若不符合大於 2 MB 真正可傳輸與輸出完整性測試，不得宣稱本批通過。
+
+實作契約、容量界線、實測與限制見 [BATCH_5_1_RESULT.md](BATCH_5_1_RESULT.md)。此狀態不代表第 8 批實機驗收已通過。
