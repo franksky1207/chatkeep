@@ -9,22 +9,70 @@ function ask(type,args={}){
   });
 }
 function status(text){$('reader-status').textContent=text;}
+function richInline(target,text){
+  // Render a conservative Markdown subset with DOM nodes; never trust HTML markup from backups.
+  const pattern=/(\\*\\*[^*\\n]+\\*\\*|\\*[^*\\n]+\\*|`[^`\\n]+`|\\[[^\\]\\n]+\\]\\(https?:\\/\\/[^)\\s]+\\))/g;
+  let cursor=0;
+  for(const match of text.matchAll(pattern)){
+    const position=match.index;if(position>cursor)target.append(document.createTextNode(text.slice(cursor,position)));
+    const value=match[0];let node;
+    if(value.startsWith('**')){node=document.createElement('strong');node.textContent=value.slice(2,-2);}
+    else if(value.startsWith('*')){node=document.createElement('em');node.textContent=value.slice(1,-1);}
+    else if(value.startsWith('`')){node=document.createElement('code');node.textContent=value.slice(1,-1);}
+    else{
+      const m=/^\\[([^\\]]+)\\]\\((https?:\\/\\/[^)\\s]+)\\)$/.exec(value);
+      node=document.createElement('a');node.textContent=m[1];node.href=m[2];node.target='_blank';node.rel='noopener noreferrer';
+    }
+    target.append(node);cursor=position+value.length;
+  }
+  if(cursor<text.length)target.append(document.createTextNode(text.slice(cursor)));
+}
+function makeBody(text){
+  const body=document.createElement('div');body.className='reader-body';
+  const lines=text.split(/\\n/);let code=null,list=null;
+  for(let i=0;i<lines.length;i++){
+    const line=lines[i];
+    if(/^\\s*```/.test(line)){
+      list=null;
+      if(code){body.append(code);code=null;}else code=document.createElement('pre');
+      continue;
+    }
+    if(code){code.textContent+=line+'\\n';continue;}
+    const heading=/^(#{1,6})\\s+(.+)$/.exec(line);
+    if(heading){list=null;const h=document.createElement('h'+Math.min(heading[1].length+1,6));richInline(h,heading[2]);body.append(h);continue;}
+    if(line.includes('|')&&i+1<lines.length&&/^\\s*\\|?\\s*:?-{3,}/.test(lines[i+1])){
+      list=null;
+      const table=document.createElement('table');
+      const cells=s=>s.trim().replace(/^\\|/,'').replace(/\\|$/,'').split('|').map(x=>x.trim());
+      const header=cells(line),thead=document.createElement('thead'),hr=document.createElement('tr');
+      for(const cell of header){const th=document.createElement('th');richInline(th,cell);hr.append(th);}thead.append(hr);table.append(thead);
+      i++;
+      const tbody=document.createElement('tbody');
+      while(i+1<lines.length&&lines[i+1].includes('|')){
+        i++;const tr=document.createElement('tr');
+        for(const cell of cells(lines[i])){const td=document.createElement('td');richInline(td,cell);tr.append(td);}tbody.append(tr);
+      }
+      table.append(tbody);body.append(table);continue;
+    }
+    const bullet=/^\\s*([-*+] |\\d+[.)] )(.+)$/.exec(line);
+    if(bullet){
+      const kind=/\\d/.test(bullet[1][0])?'ol':'ul';
+      if(!list||list.tagName.toLowerCase()!==kind){list=document.createElement(kind);body.append(list);}
+      const li=document.createElement('li');richInline(li,bullet[2]);list.append(li);continue;
+    }
+    list=null;
+    const quote=/^>\\s?(.*)$/.exec(line);
+    const el=document.createElement(quote?'blockquote':'p');richInline(el,quote?quote[1]:line||'\\u00a0');body.append(el);
+  }
+  if(code)body.append(code);
+  return body;
+}
 function render(messages){
   const target=$('reader-messages');target.replaceChildren();
   for(const m of messages){
     const article=document.createElement('article');article.className='reader-message';
     const heading=document.createElement('h3');heading.textContent=m.role==='user'?'使用者':m.role==='assistant'?'ChatGPT':'其他訊息';
-    const body=document.createElement('div');body.className='reader-body';
-    // Safe structural subset: never inject untrusted HTML.
-    const lines=m.text.split(/\n/);let code=null;
-    for(const line of lines){
-      if(/^\s*```/.test(line)){if(code){body.append(code);code=null;}else code=document.createElement('pre');continue;}
-      if(code){code.textContent+=line+'\n';continue;}
-      const match=/^(#{1,6})\s+(.+)$/.exec(line);
-      if(match){const h=document.createElement('h'+Math.min(match[1].length+1,6));h.textContent=match[2];body.append(h);continue;}
-      const p=document.createElement('p');p.textContent=line||'\u00a0';body.append(p);
-    }
-    if(code)body.append(code);
+    const body=makeBody(m.text);
     const copy=document.createElement('button');copy.className='secondary';copy.textContent='複製此則文字';copy.type='button';
     copy.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(m.text);status('已複製單則文字（尚非含格式全文複製）');}catch(e){status('複製失敗：'+e.message);}});
     article.append(heading,body,copy);target.append(article);
