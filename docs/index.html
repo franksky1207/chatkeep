@@ -43,11 +43,11 @@
 <details><summary>ZIP 本機暫存與支援限制</summary><div class="details-body"><p>備份分塊背景掃描，不會一次解析整包 JSON。ZIP 只解壓對話 JSON 至瀏覽器的網站儲存空間（OPFS），不會因此上傳。清除索引或取消掃描時會刪除暫存；關閉分頁時會嘗試清理，異常關閉可能殘留，請清除此網站的儲存空間。</p><p>無痕模式的 ZIP 暫存可能占用大量記憶體。ZIP64、加密或異常高壓縮比例不支援；遇到限制請在電腦解壓，再分批選取 JSON。</p></div></details>
 <p id="progress" role="status" aria-live="polite" aria-atomic="true"></p></section>
 <section class="panel" id="picker" aria-labelledby="picker-title" hidden><h2 id="picker-title">2．搜尋與選取對話</h2>
-<label for="search">標題關鍵字</label><input id="search" type="search" placeholder="例如：文明戰線、高中導師遊戲">
+<label for="search">標題關鍵字</label><input id="search" type="search" placeholder="輸入對話標題關鍵字">
 <details id="advanced-filters"><summary>日期與系列編號篩選</summary><div class="details-body"><div class="filter-grid">
-<div><label for="series">系列名稱</label><input id="series" type="text" placeholder="例如：文明戰線"></div>
-<div><label for="first">編號起點</label><input id="first" type="number" min="1" step="1" placeholder="例如：1"></div>
-<div><label for="last">編號終點</label><input id="last" type="number" min="1" step="1" placeholder="例如：101"></div>
+<div><label for="series">系列名稱</label><input id="series" type="text" placeholder="輸入系列名稱"></div>
+<div><label for="first">編號起點</label><input id="first" type="number" min="1" step="1" placeholder="起始編號"></div>
+<div><label for="last">編號終點</label><input id="last" type="number" min="1" step="1" placeholder="結束編號"></div>
 <div><label for="date-field">日期依據</label><select id="date-field"><option value="update">更新日期</option><option value="create">建立日期</option></select></div>
 <div><label for="from">開始日期</label><input id="from" type="date"></div>
 <div><label for="to">結束日期</label><input id="to" type="date"></div></div>
@@ -65,7 +65,7 @@
 <label for="reader-search">搜尋此對話全部主線正文</label><input id="reader-search" type="search" placeholder="搜尋正文內容">
 <div id="reader-hits" class="reader-hits" aria-live="polite"></div>
 <nav class="pagination" aria-label="閱讀分頁"><button id="reader-prev" class="secondary" type="button">上一頁</button><span id="reader-page"></span><button id="reader-next" class="secondary" type="button">下一頁</button></nav>
-<div id="reader-messages"></div>
+<div id="reader-messages"></div><nav class="pagination" aria-label="閱讀頁尾分頁"><button id="reader-first" class="secondary" type="button">第一頁</button><button id="reader-prev-bottom" class="secondary" type="button">上一頁</button><span id="reader-page-bottom"></span><button id="reader-next-bottom" class="secondary" type="button">下一頁</button><button id="reader-last" class="secondary" type="button">最後一頁</button></nav>
 </section>
 <section class="panel" id="export" aria-labelledby="selected-title" hidden><h2 id="selected-title" tabindex="-1">3．已選清單與轉換</h2><p id="count" role="status" aria-live="polite"></p><p id="selection-scope" class="note"></p><div id="selected-results" role="list" aria-label="已勾選的對話"></div>
 <nav class="pagination" aria-label="已選清單分頁"><button id="selected-prev" class="secondary" type="button">上一頁已選</button><span id="selected-page"></span><button id="selected-next" class="secondary" type="button">下一頁已選</button></nav>
