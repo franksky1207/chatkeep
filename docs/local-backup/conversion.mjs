@@ -74,6 +74,7 @@ export class ConversionQueue{
  emit(job,stage){job.stage=stage;this.onUpdate(job,this);}
  async once(path,body,job){
   for(let attempt=0;;attempt++){
+   this.emit(job,'等待傳送：保留服務間隔，稍後開始第 1 / 1 批');
    await this.wait(6100,this.controller.signal);check(this.controller.signal);this.emit(job,'上傳批次 1 / 1；Render 正在轉換（無內部百分比）');
    const c=new AbortController(),abort=()=>c.abort();this.controller.signal.addEventListener('abort',abort,{once:true});
    const timer=setTimeout(()=>c.abort(),55000);let result;
@@ -100,17 +101,20 @@ export class ConversionQueue{
     if(job.item.url){artifact=await verifyEnvelope(await this.once('/api/convert-v2',{url:shareURL(job.item.url)},job),{signal:this.controller.signal,onStage:s=>this.emit(job,s)});}
     else{
      if(!job.prepared){this.emit(job,'對話準備：擷取單一已選對話');const blob=await this.extract(job.item,this.controller.signal);check(this.controller.signal);this.emit(job,'對話準備：驗證目前分支');job.prepared=await this.prepare(blob,{signal:this.controller.signal});}
-     const p=job.prepared;
+     const p=job.prepared;job.partTotal=p.mode==='chunks'?p.chunks.length:1;
      if(p.mode==='official')artifact=await verifyEnvelope(await this.once('/api/convert-json',p.blob,job),{signal:this.controller.signal,onStage:s=>this.emit(job,s)});
      else{
       job.collector??=new TransferResults(p);
       const indices=p.chunks.map(c=>c.part_index).filter(i=>!job.collector.results.has(i));
-      await sendPrepared(p,{collector:job.collector,signal:this.controller.signal,indices,wait:this.wait,
-       send:async(packet,{signal})=>{job.failedPart=packet.part_index;this.emit(job,'上傳批次 '+packet.part_index+' / '+p.chunks.length+'；Render 正在轉換');const result=await this.send(this.base,'/api/convert-chunk-v1',packet,{signal});this.emit(job,'分卷驗證：批次 '+packet.part_index);return result;}});
+      await sendPrepared(p,{collector:job.collector,signal:this.controller.signal,indices,wait:this.wait,onProgress:event=>{
+        if(event.phase==='waiting')this.emit(job,'等待傳送：即將處理第 '+event.index+' / '+p.chunks.length+' 批');
+        if(event.phase==='retry')this.emit(job,'服務忙碌或請求較多：第 '+event.index+' / '+p.chunks.length+' 批，等待 '+event.seconds+' 秒後重試');
+       },
+       send:async(packet,{signal})=>{job.failedPart=packet.part_index;this.emit(job,'上傳批次 '+packet.part_index+' / '+p.chunks.length+'；Render 正在轉換');const result=await this.send(this.base,'/api/convert-chunk-v1',packet,{signal});if(result.status===200)this.emit(job,'分卷驗證：批次 '+packet.part_index);return result;}});
       this.emit(job,'分卷驗證：核對全部批次');artifact=await job.collector.finish({signal:this.controller.signal,onStage:s=>this.emit(job,s)});
      }
     }
-    check(this.controller.signal);job.artifact=artifact;if(job.item.url)job.title=artifact.filename.replace(/\.(docx|zip)$/i,'');job.report=artifact.report;this.retained+=artifact.blob.size;job.prepared=null;job.collector=null;job.state='done';this.emit(job,'下載準備完成');
+    check(this.controller.signal);job.artifact=artifact;if(job.item.url)job.title=artifact.filename.replace(/\.(docx|zip)$/i,'');job.report=artifact.report;job.type=artifact.artifact_type;this.retained+=artifact.blob.size;job.prepared=null;job.collector=null;job.state='done';this.emit(job,'下載準備完成');
    }catch(e){
     if(this.controller.signal.aborted||e.name==='AbortError'){job.prepared=null;job.collector?.cancel();job.collector=null;job.state='cancelled';this.emit(job,'已取消');return;}
     job.state='failed';job.error=e.code||e.message||'CONVERSION_FAILED';this.emit(job,'失敗');return;
@@ -123,11 +127,11 @@ export class ConversionQueue{
  dispose(){this.cancel();for(const job of this.jobs)this.release(job);this.jobs=[];}
 }
 export function explain(code){
- const map={INVALID_URL:'請輸入 https://chatgpt.com/share/UUID 公開分享網址。',API_NOT_CONFIGURED:'請設定已支援新版 API 的本機或測試 Render 位址；正式 v1.0.0 尚未部署新版路由。',API_UNAVAILABLE:'API 尚未部署或位址不正確；請確認新版服務後重試。',API_INCOMPATIBLE:'API 版本或回應不相容；請使用支援 v2 的服務。',NETWORK_OR_CORS:'連線中斷或跨來源請求遭阻擋；請檢查網路、API 位址與 Render 來源白名單後重試。',RATE_LIMITED:'已達速率限制；請等候至少 60 秒後重試。',BUSY:'Render 正忙；請稍後重試。',UNSUPPORTED_WORKER:'瀏覽器不支援 Worker；請使用新版桌面瀏覽器。',UNSUPPORTED_CRYPTO:'需要安全連線與 WebCrypto；請使用 HTTPS 或 localhost。',UNSUPPORTED_DECOMPRESSION:'瀏覽器不支援 deflate-raw DecompressionStream；請更新瀏覽器。',PREPARATION_FAILED:'準備 Worker 停止；請減少選取內容或改用電腦後重試。'};
- if(map[code])return code+'：'+map[code];
- if(/LIMIT|TOO_LARGE/.test(code))return code+'：超過安全容量；請減少內容或選取較小對話，單則訊息不能裁切。';
- if(/TIMEOUT/.test(code))return code+'：轉換或傳輸逾時；請稍後重試失敗批次。';
- if(/MISMATCH|MISSING|HASH|CRC|BOOKMARK|INVALID_ARTIFACT|INVALID_DOCX|INVALID_RESPONSE/.test(code))return code+'：完整性驗證失敗，未提供下載；請重試失敗批次或重新準備。';
- if(code==='INVALID_BRANCH'||code==='UNSUPPORTED_CONTENT')return code+'：無法確認分支或含不支援內容，未產生不完整文件；請改選可支援的文字對話。';
- return code+'：未完成轉換；請確認來源及服務版本後重試。';
+ const map={INVALID_URL:'請貼上 ChatGPT 公開分享連結，私人對話網址不適用。',API_NOT_CONFIGURED:'尚未設定新版轉換服務。此開發預覽版可先在本機搜尋備份；開發者可展開服務設定，指定核准的測試服務。',API_UNAVAILABLE:'轉換功能尚未部署，或服務網址不正確。請確認新版服務已啟用後重試。',API_INCOMPATIBLE:'目前服務的版本或回應不支援此功能，請改用已啟用新版轉換的服務。',NETWORK_OR_CORS:'連線中斷，或網站尚未獲准連線至轉換服務。請檢查網路後重試；若持續發生，請由服務管理員檢查來源白名單（CORS）。',RATE_LIMITED:'請求較多，請至少等候 60 秒後再重試。已完成的成果與已驗證批次會保留。',BUSY:'Render 正忙，請稍後重試。',UNSUPPORTED_WORKER:'瀏覽器不支援背景處理（Worker），請使用新版桌面瀏覽器。',UNSUPPORTED_CRYPTO:'瀏覽器缺少安全驗證功能，請使用 HTTPS 或本機 localhost，並更新瀏覽器。',UNSUPPORTED_DECOMPRESSION:'瀏覽器不支援所需的文件解壓驗證功能，請更新瀏覽器或改用新版桌面瀏覽器。',PREPARATION_FAILED:'本機準備程序停止，可能是瀏覽器功能或記憶體限制。請減少內容或改用電腦後重試。'};
+ if(map[code])return map[code];
+ if(/LIMIT|TOO_LARGE/.test(code))return '超過安全容量，未提供不完整檔案。請減少內容或改選較小對話；單則訊息不能任意裁切。';
+ if(/TIMEOUT/.test(code))return '轉換或傳輸逾時。請稍後重試失敗對話或缺少批次；已驗證的批次不會重新傳送。';
+ if(/MISMATCH|MISSING|HASH|CRC|BOOKMARK|INVALID_ARTIFACT|INVALID_DOCX|INVALID_RESPONSE/.test(code))return '完整性驗證未通過，因此未提供下載。請重試缺少或失敗批次；若持續失敗，請重新準備對話。';
+ if(code==='INVALID_BRANCH'||code==='UNSUPPORTED_CONTENT')return '無法確認對話分支，或含不支援的內容。未產生不完整文件，請改選可支援的文字對話。';
+ return '無法完成轉換，請確認來源內容與服務版本後重試。';
 }

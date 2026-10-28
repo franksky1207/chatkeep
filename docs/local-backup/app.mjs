@@ -1,10 +1,13 @@
+import {safeFilename} from './conversion.mjs';
+import {mountModes} from './site-ui.mjs';
 import {mountConversion} from './conversion-ui.mjs';
 import {filterRows,report,seriesNumber,isoDate} from './filters.mjs';
 const $=id=>document.getElementById(id);
+mountModes();
+const PAGE_SIZE=50,SELECTED_PAGE_SIZE=25;let resultPage=0,selectedPage=0,lastRows=[];
 let index=[],selected=new Set(),worker=null,busy=false,directory=null,generation=0,request=0;
 const pending=new Map(),urls=new Set(); let failures=[],completed=0; let cleaning=false,conversionLocked=false;
 function status(s,fail=false){$('progress').textContent=s;$('progress').className=fail?'error':'';}
-function safe(s){return String(s||'未命名對話').replace(/[<>:"/\\|?*\x00-\x1f]/g,'_').slice(0,70).trim()||'未命名對話';}
 function date(value){const d=new Date(value*1000);return value!=null&&!Number.isNaN(d.valueOf())?d.toLocaleDateString('zh-TW'):'日期未提供';}
 function options(){return {query:$('search').value,series:$('series').value,first:$('first').value,last:$('last').value,dateField:$('date-field').value,from:$('from').value,to:$('to').value};}
 function matches(){return filterRows(index,options());}
@@ -16,10 +19,13 @@ function summary(rows){
   if(r.missing.length)problems.push('範圍內未找到編號：'+r.missing.join('、'));
   if(r.duplicates.length)problems.push('重複編號：'+r.duplicates.map(x=>x.number+'（'+x.count+' 段）').join('、'));
   if(failures.length)problems.push('有 '+failures.length+' 個來源解析失敗，報告不代表整份備份完整');
-  $('report').textContent='索引總對話：'+all.conversations+' 段｜目前符合：'+r.conversations+' 段｜原始 mapping 節點欄位合計：'+r.nodes+
-    '\n可匯出訊息數／可見訊息數：未驗證（此階段未解析當前分支與訊息內容）'+
-    '\n選取數：'+selected.size+' 段｜資料來源：'+new Set(rows.map(x=>x.label)).size+' 個'+
-    (problems.length?'\n提醒：'+problems.join('；'):'\n編號缺漏報告僅代表目前已成功匯入且符合篩選的資料。');
+  $('index-counts').textContent='總索引 '+all.conversations+' 段 · 符合 '+r.conversations+' 段 · 已勾選 '+selected.size+' 段';
+  $('select-visible').textContent='勾選目前搜尋結果（共 '+rows.length+' 段，包含所有分頁）';
+  $('select-visible').disabled=busy||!rows.length;
+  $('report').textContent=(problems.length?'提醒：'+problems.join('；')+'\n':'')+
+    '缺號／重號僅根據成功解析且符合目前篩選的來源，不代表整份備份完整。'+
+    '\n原始 mapping 節點欄位合計：'+r.nodes+'；節點數不等於可見訊息數。可匯出訊息數尚未驗證，轉換後請查看完整性報告。';
+
 }
 function preview(item){
   const number=$('series').value?seriesNumber(item.title,$('series').value):null;
@@ -33,26 +39,52 @@ function preview(item){
     '\n警告：節點欄位不等於可見訊息數；分支、隱藏訊息、內容格式及可匯出訊息數尚未逐一驗證。';
 }
 function controls(){
-  for(const id of ['scan','reset','files','search','select-visible','deselect','series','first','last','date-field','from','to','convert-share','api-base','share-url'])$(id).disabled=busy;
+  $('local-operation').hidden=!busy||conversionLocked;$('local-operation').textContent=busy&&!conversionLocked?'本機作業進行中，請等候掃描或原始 JSON 擷取完成。可切回官方備份查看進度。':'';
+  for(const id of ['scan','reset','files','search','select-visible','deselect','series','first','last','date-field','from','to','convert-share','api-base','share-url','reset-filters','results-prev','results-next','selected-prev','selected-next'])$(id).disabled=busy;
   $('cancel').hidden=!busy||conversionLocked; $('cancel').disabled=cleaning; $('download').disabled=busy||!selected.size;
   $('convert-selected').disabled=busy||!selected.size;
+  $('results-prev').disabled=busy||resultPage===0;$('results-next').disabled=busy||(resultPage+1)*PAGE_SIZE>=lastRows.length;
   $('count').textContent='已選 '+selected.size+' 段';
+  renderSelected();
+}
+function renderSelected(){
+  const rows=index.filter(item=>selected.has(item.key));
+  selectedPage=Math.min(selectedPage,Math.max(0,Math.ceil(rows.length/SELECTED_PAGE_SIZE)-1));
+  const visible=lastRows.reduce((n,item)=>n+Number(selected.has(item.key)),0);
+  $('selection-scope').textContent=rows.length?'目前篩選中已勾選 '+visible+' 段；另有 '+(rows.length-visible)+' 段位於其他搜尋條件。轉換會包含全部已選對話。':'尚未勾選對話，請從搜尋結果選取。';
+  const frag=document.createDocumentFragment();
+  for(const item of rows.slice(selectedPage*SELECTED_PAGE_SIZE,(selectedPage+1)*SELECTED_PAGE_SIZE)){
+    const row=document.createElement('div');row.className='selected-entry';row.setAttribute('role','listitem');
+    const name=document.createElement('p');name.textContent=item.title;
+    const remove=document.createElement('button');remove.type='button';remove.className='quiet';remove.textContent='移除選取';remove.setAttribute('aria-label','移除選取：'+item.title);remove.disabled=busy;
+    remove.addEventListener('click',()=>{if(busy)return;selected.delete(item.key);display();$('selected-title').focus();});row.append(name,remove);
+    if(Array.from(item.title).length>40){const details=document.createElement('details'),summary=document.createElement('summary'),full=document.createElement('p');summary.textContent='查看完整名稱';full.textContent=item.title;details.append(summary,full);row.append(details);}
+    frag.append(row);
+  }
+  if(!rows.length){const p=document.createElement('p');p.className='empty';p.textContent='已選清單是空的。';frag.append(p);}
+  $('selected-results').replaceChildren(frag);
+  $('selected-page').textContent=rows.length?'第 '+(selectedPage+1)+' / '+Math.ceil(rows.length/SELECTED_PAGE_SIZE)+' 頁':'尚無已選對話';
+  $('selected-prev').disabled=busy||selectedPage===0;$('selected-next').disabled=busy||(selectedPage+1)*SELECTED_PAGE_SIZE>=rows.length;
 }
 function display(){
-  const rows=matches();$('shown').textContent='找到 '+rows.length+' 段符合搜尋的對話（清單最多顯示前 300 筆；勾選搜尋結果會包含全部符合項目）';
+  const rows=matches();lastRows=rows;resultPage=Math.min(resultPage,Math.max(0,Math.ceil(rows.length/PAGE_SIZE)-1));
+  $('shown').textContent=rows.length?'搜尋結果共 '+rows.length+' 段，每頁最多 '+PAGE_SIZE+' 段。「勾選目前搜尋結果」包含所有分頁，不會清除其他已選對話。':'沒有符合條件的對話。請換個關鍵字、調整日期或系列範圍，也可以清除篩選。';
   const frag=document.createDocumentFragment();
-  for(const item of rows.slice(0,300)){
-    const row=document.createElement('div');row.className='entry';
+  for(const item of rows.slice(resultPage*PAGE_SIZE,(resultPage+1)*PAGE_SIZE)){
+    const row=document.createElement('div');row.className='entry'+(selected.has(item.key)?' selected':'');row.setAttribute('role','listitem');
     const c=document.createElement('input');c.type='checkbox';c.checked=selected.has(item.key);c.disabled=busy;c.id='entry-'+item.key;
-    c.addEventListener('change',()=>{if(busy)return;c.checked?selected.add(item.key):selected.delete(item.key);controls();});
-    const label=document.createElement('label');label.htmlFor=c.id;label.textContent=item.title;
-    const sub=document.createElement('div');sub.className='sub';sub.textContent=date(item.update_time)+' · '+item.label+' · '+item.nodes+' 個原始 mapping 節點欄位（非可見訊息數）';
-    label.append(sub);const view=document.createElement('button');view.type='button';view.className='btn secondary';view.textContent='預覽';view.disabled=busy;view.addEventListener('click',()=>preview(item));row.append(c,label,view);frag.append(row);
+    c.addEventListener('change',()=>{if(busy)return;c.checked?selected.add(item.key):selected.delete(item.key);row.classList.toggle('selected',c.checked);controls();summary(lastRows);});
+    const label=document.createElement('label');label.htmlFor=c.id;const title=document.createElement('span');title.className='entry-title';title.textContent=item.title;label.append(title);
+    const sub=document.createElement('span');sub.className='sub';sub.textContent=date(item.update_time)+' · '+item.label;
+    label.append(sub);const view=document.createElement('button');view.type='button';view.className='secondary';view.textContent='預覽';view.setAttribute('aria-label','預覽：'+item.title);view.disabled=busy;view.addEventListener('click',()=>{preview(item);$('preview').focus();});row.append(c,label,view);frag.append(row);
   }
+  if(!rows.length){const p=document.createElement('p');p.className='empty';p.textContent='沒有符合條件的對話。';frag.append(p);}
   $('results').replaceChildren(frag);controls();summary(rows);
+  $('results-page').textContent=rows.length?'第 '+(resultPage+1)+' / '+Math.ceil(rows.length/PAGE_SIZE)+' 頁':'沒有搜尋結果';
+  $('results-prev').disabled=busy||resultPage===0;$('results-next').disabled=busy||(resultPage+1)*PAGE_SIZE>=rows.length;
 }
 async function release(){
-  conversion.clear();busy=true;
+  busy=true;
   cleaning=true;generation++;const oldWorker=worker;worker=null;
   if(oldWorker){
     await new Promise(resolve=>{
@@ -64,7 +96,7 @@ async function release(){
   }
   for(const {reject} of pending.values())reject(Error('操作已取消'));pending.clear();
   for(const url of urls)URL.revokeObjectURL(url);urls.clear();
-  index=[];selected.clear();$('picker').hidden=true;$('export').hidden=true;
+  index=[];lastRows=[];resultPage=0;selectedPage=0;selected.clear();$('picker').hidden=true;$('export').hidden=true;
   $('export-status').textContent='';$('results').replaceChildren();$('preview').hidden=true;$('report').textContent='';
   const old=directory;directory=null;
   if(old && navigator.storage?.getDirectory){
@@ -80,7 +112,7 @@ async function release(){
 }
 async function clear(message,clearFiles=false){
   // Keep all controls locked until the old worker's disk resources are removed.
-  if(cleaning)return;busy=true;const cleanup=release();controls();
+  if(cleaning)return;if(conversionLocked)conversion.cancel();busy=true;const cleanup=release();controls();
   try{await cleanup;if(clearFiles)$('files').value='';status(message);}
   catch(e){status(e.message,true);}
   finally{busy=false;controls();}
@@ -128,17 +160,24 @@ $('scan').addEventListener('click',async()=>{
 });
 $('cancel').addEventListener('click',()=>void clear('已取消並清除本次索引與暫存，可重新選檔掃描。'));
 $('reset').addEventListener('click',()=>{if(!busy)void clear('已清除清單與本機暫存。',true);});
-for(const id of ['search','series','first','last','date-field','from','to'])$(id).addEventListener('input',()=>{ $('preview').hidden=true;display(); });
+for(const id of ['search','series','first','last','date-field','from','to'])$(id).addEventListener('input',()=>{ $('preview').hidden=true;resultPage=0;display(); });
 $('select-visible').addEventListener('click',()=>{if(busy)return;for(const x of matches())selected.add(x.key);display();});
 $('deselect').addEventListener('click',()=>{if(busy)return;selected.clear();display();});
+$('reset-filters').addEventListener('click',()=>{
+  if(busy)return;for(const id of ['search','series','first','last','from','to'])$(id).value='';$('date-field').value='update';resultPage=0;display();$('search').focus();
+});
+$('results-prev').addEventListener('click',()=>{if(!busy){resultPage--;display();$('results').scrollTop=0;}});
+$('results-next').addEventListener('click',()=>{if(!busy){resultPage++;display();$('results').scrollTop=0;}});
+$('selected-prev').addEventListener('click',()=>{if(!busy){selectedPage--;renderSelected();$('selected-results').scrollTop=0;}});
+$('selected-next').addEventListener('click',()=>{if(!busy){selectedPage++;renderSelected();$('selected-results').scrollTop=0;}});
 $('download').addEventListener('click',async()=>{
   if(busy||!selected.size)return;busy=true;display();const current=generation;let n=0;
   try{
     for(const item of index.filter(x=>selected.has(x.key))){
       $('export-status').textContent='正在擷取第 '+(n+1)+' 段：'+item.title;
       const blob=await extract(item);if(current!==generation)return;
-      const url=URL.createObjectURL(blob);urls.add(url);const a=document.createElement('a');a.href=url;a.download=safe(item.title)+'_'+(++n)+'.json';
-      document.body.append(a);a.click();a.remove();setTimeout(()=>{URL.revokeObjectURL(url);urls.delete(url);},60000);
+      const url=URL.createObjectURL(blob);urls.add(url);const a=document.createElement('a');a.href=url;a.download=safeFilename(item.title+'_'+(++n),'json');
+      document.body.append(a);a.click();a.remove();setTimeout(()=>{URL.revokeObjectURL(url);urls.delete(url);},1000);
       await new Promise(r=>setTimeout(r,50));
     }
     $('export-status').textContent='已啟動 '+n+' 個原始對話 JSON 下載。如瀏覽器攔截多檔下載，請允許或減少勾選數量。';
@@ -151,6 +190,6 @@ window.addEventListener('pagehide',()=>{worker?.terminate();for(const url of url
 const conversion=mountConversion({
  getSelected:()=>index.filter(x=>selected.has(x.key)),
  extract:(item,signal)=>{if(item.end-item.start>16_000_000){const e=Error('SELECTED_SOURCE_LIMIT');e.code=e.message;throw e;}return extract(item,signal);},
- setLocked:value=>{conversionLocked=value;busy=value;display();}
+ setLocked:value=>{conversionLocked=value;busy=value||cleaning;display();}
 });
 controls();

@@ -68,7 +68,10 @@ def main():
             page = browser.new_page(accept_downloads=True)
             errors=[];page.on('pageerror', lambda e: errors.append(str(e)))
             page.goto(origin)
+            page.locator('#service-settings').evaluate('(el)=>el.open=true')
             page.locator('#api-base').fill(base)
+            page.locator('#tab-backup').click()
+            page.locator('#raw-download').evaluate('(el)=>el.open=true')
             data = [conversation('Selected one'), conversation('PRIVATE_OTHER', 'NEVER_SEND'),
                     conversation('Selected large', padding=2_100_000)]
             path=Path(directory)/'conversations.json';path.write_text(json.dumps(data))
@@ -98,6 +101,8 @@ def main():
                 info.value.save_as(Path(directory)/'out.docx')
                 assert (Path(directory)/'out.docx').read_bytes()[:2]==b'PK'
             # New job disposes old results, both share artifact types download locally.
+            page.locator('#clear-conversion').click()
+            page.locator('#tab-share').click()
             for kind in ['DOCX','ZIP']:
                 page.locator('#share-url').fill('https://chatgpt.com/share/00000000-0000-0000-0000-000000000000')
                 page.locator('#convert-share').click()
@@ -105,6 +110,7 @@ def main():
                 expect(b).to_be_visible(timeout=20000)
                 with page.expect_download() as info: b.click()
                 assert info.value.suggested_filename.lower().endswith('.'+kind.lower())
+                page.locator('#clear-conversion').click()
             # Actual rejected cross-origin API fetch, rather than a mocked browser error.
             rejected=page.evaluate('''async base=>{try{const r=await fetch(base+'/api/convert-json',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'forbidden'},body:'{}'});return r.status;}catch{return 'blocked';}}''',base)
             assert rejected=='blocked'
@@ -113,7 +119,7 @@ def main():
             page.locator('#convert-share').click()
             expect(page.locator('#conversion-results')).to_contain_text('NETWORK_OR_CORS', timeout=20000)
             page.locator('#cancel-conversion').click()
-            expect(page.locator('#conversion-results button',has_text='下載')).to_have_count(0)
+            expect(page.locator('#conversion-results button:visible',has_text='下載')).to_have_count(0)
             page.unroute('**/api/convert-v2')
             page.locator('#clear-conversion').click()
             held=[]
@@ -126,7 +132,7 @@ def main():
             expect(page.locator('#clear-conversion')).to_be_enabled(timeout=5000)
             try: held[0].fulfill(status=200, content_type='application/json', body=json.dumps(share_docx))
             except Exception: pass  # Native fetch abort may already dispose the route.
-            expect(page.locator('#conversion-results button',has_text='下載')).to_have_count(0)
+            expect(page.locator('#conversion-results button:visible',has_text='下載')).to_have_count(0)
             page.unroute('**/api/convert-v2')
             page.locator('#clear-conversion').click()
             expect(page.locator('#conversion-results')).to_be_empty()

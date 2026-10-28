@@ -16,7 +16,7 @@ const pause=(ms,signal)=>new Promise((resolve,reject)=>{
  check(signal);const cancel=()=>{clearTimeout(timer);reject(new DOMException('已取消','AbortError'));};
  const timer=setTimeout(()=>{signal?.removeEventListener('abort',cancel);resolve();},ms);signal?.addEventListener('abort',cancel,{once:true});
 });
-export async function sendPrepared(prepared,{send,collector,signal,indices,wait=pause,now=()=>performance.now(),interval=6100}={}){
+export async function sendPrepared(prepared,{send,collector,signal,indices,wait=pause,now=()=>performance.now(),interval=6100,onProgress=()=>{}}={}){
  if(prepared.mode!=='chunks'||typeof send!=='function'||!collector)fail('INVALID_TRANSFER');
  // One invocation is strictly sequential. A resumed invocation gets an initial
  // cooldown as well; server RateLimit remains authoritative across tabs/jobs.
@@ -29,6 +29,7 @@ export async function sendPrepared(prepared,{send,collector,signal,indices,wait=
   if(!Number.isInteger(index)||index<1||index>prepared.chunks.length)fail('PART_ORDER');
   for(let attempt=0;;attempt++){
    check(signal);if(now()-started>900000)fail('TRANSFER_TIMEOUT');
+   onProgress({phase:'waiting',index});
    await wait(Math.max(0,last+Math.max(6100,interval)-now()),signal);check(signal);last=now();
    const controller=new AbortController();
    const cancel=()=>controller.abort();signal?.addEventListener('abort',cancel,{once:true});
@@ -38,7 +39,7 @@ export async function sendPrepared(prepared,{send,collector,signal,indices,wait=
     const aborted=new Promise((_,reject)=>controller.signal.addEventListener('abort',()=>reject(new DOMException('已取消','AbortError')),{once:true}));
     const result=await Promise.race([send(prepared.chunks[index-1],{signal:controller.signal}),timeout,aborted]);
     check(signal);
-    if(result.status===429){if(attempt>=2)fail(result.value?.error?.code==='BUSY'?'BUSY':'RATE_LIMITED');const retry=Number(result.retryAfter??60);await wait(Math.min(120000,Math.max(2000,Number.isFinite(retry)?retry*1000:60000)),signal);continue;}
+    if(result.status===429){if(attempt>=2)fail(result.value?.error?.code==='BUSY'?'BUSY':'RATE_LIMITED');const retry=Number(result.retryAfter??60),delay=Math.min(120000,Math.max(2000,Number.isFinite(retry)?retry*1000:60000));onProgress({phase:'retry',index,seconds:delay/1000});await wait(delay,signal);continue;}
     if(result.status!==200)fail(result.value?.error?.code||'BATCH_FAILED');
     await collector.accept(index,result.value,{signal});break;
    }finally{clearTimeout(timer);signal?.removeEventListener('abort',cancel);}

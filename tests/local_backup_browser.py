@@ -129,6 +129,8 @@ def run(stress=False, engine='chromium'):
                 context.on('request',lambda r:external.append(r.url) if not r.url.startswith(('http://127.0.0.1:','blob:')) else None)
                 page=context.new_page();page.on('pageerror',lambda e:errors.append(str(e)))
                 page.goto(f'http://127.0.0.1:{server.server_port}/')
+                page.locator('#tab-backup').click()
+                page.locator('#raw-download').evaluate('(el)=>el.open=true')
                 expect(page.locator('#scan')).to_be_enabled();expect(page.locator('#cancel')).to_be_hidden()
                 page.wait_for_timeout(100)
                 def scan(paths, count=None):
@@ -153,7 +155,7 @@ def run(stress=False, engine='chromium'):
                         assert digest.hexdigest()==expected_hash
                 scan([a],180)
                 scan([a,b],365)
-                expect(page.locator('#results input')).to_have_count(300)
+                expect(page.locator('#results input')).to_have_count(50)
                 page.locator('#select-visible').click();expect(page.locator('#count')).to_have_text('已選 365 段')
                 page.locator('#deselect').click();expect(page.locator('#count')).to_have_text('已選 0 段')
                 download_one('對話 0350',objects[350])
@@ -201,6 +203,7 @@ def run(stress=False, engine='chromium'):
                 denied=context.new_page()
                 denied.add_init_script("Object.defineProperty(navigator.storage,'getDirectory',{value:async()=>{throw new DOMException('denied','SecurityError')}})")
                 denied.goto(f'http://127.0.0.1:{server.server_port}/')
+                denied.locator('#tab-backup').click()
                 denied.locator('#files').set_input_files([str(a),str(archive)]);denied.locator('#scan').click()
                 expect(denied.locator('#progress')).to_contain_text('索引完成',timeout=30000)
                 expect(denied.locator('#progress')).to_contain_text('180 段對話')
