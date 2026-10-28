@@ -21,3 +21,11 @@
 `node --test tests/local_backup_filters.test.mjs tests/local_backup.test.mjs`
 
 本次 GitHub 連線僅用於提交程式，尚未取得瀏覽器端到端測試成功證據，也沒有觸發 GitHub Actions。須於第 3 批正式驗收時執行上述測試並檢查手機版輸入、篩選後批次選取與原始 JSON 下載。
+
+## 第 3 批技術驗收補記（2026-10-28）
+
+在獨立 Node.js 22.16.0 環境，依 GitHub 開發分支的 `filters.mjs` 與 `local_backup_filters.test.mjs` 原始內容重建本機工作檔並執行 `node --test tests/local_backup_filters.test.mjs`，**3 個 test 均通過、0 失敗**：系列中文／阿拉伯數字辨識、標題日期區間交集、缺號與重號報告。測試時間約 0.27 秒。
+
+這項結果屬純 JavaScript 篩選邏輯驗收，**不是**對遠端 GitHub Actions、完整 JSON／ZIP 解析器或瀏覽器 UI 的端對端驗收；未宣稱已執行那些測試。應保留第 2 批已取得的解析核心證據，並在第 8 批集中使用真正官方備份與手機／桌機實機測試。
+
+批次狀態：第 3 批範圍程式已提交、核心邏輯測試通過；實機驗收依使用者決定延至第 8 批。不啟用 Pages、不部署 Render、不合併 main。
