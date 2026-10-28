@@ -1,0 +1,6 @@
+#reader-panel .reader-body { line-height: 1.28; }
+#reader-panel .reader-body p { margin: 0; padding: 0; line-height: 1.28; }
+#reader-panel .reader-message { margin: 4px 0; padding: 9px 12px; }
+#reader-panel .reader-nav { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; }
+#reader-panel .reader-nav #reader-jump { flex: 0 0 54px; width: 54px; max-width: 54px; min-width: 0; min-height: 36px; padding: 4px 5px; margin: 0; }
+#reader-panel .reader-nav button { padding: 6px 10px; min-height: 36px; }
