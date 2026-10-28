@@ -36,7 +36,7 @@ export function splitMessages(messages,limit=300000){
  const flush=()=>{if(batch.length){chunks.push({start,messages:batch});start+=batch.length;batch=[];size=0;}};
  for(const m of messages){const n=m.text.length+160;if(n>limit)throw Error('單則訊息超過安全複製大小，請使用 HTML 下載');if(batch.length&&size+n>limit)flush();batch.push(m);size+=n;}flush();return chunks;
 }
-export function splitHtmlVolumes(messages,limit=600000){
+export function splitHtmlVolumes(messages,limit=8000000){
  const chunks=[];let start=0,batch=[],size=0;
  const flush=()=>{if(batch.length){chunks.push({start,messages:batch});start+=batch.length;batch=[];size=0;}};
  for(const m of messages){const n=m.text.length+160;if(batch.length&&size+n>limit)flush();batch.push(m);size+=n;}flush();return chunks;
