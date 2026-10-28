@@ -20,3 +20,13 @@ test('corrupt path rejects instead of silently truncating',()=>{
  assert.throws(()=>parseConversation({current_node:'a',mapping:{a:{parent:'missing',message:null}}}),/主線/);
 });
 test('Word-like Chinese and English count is approximate',()=>{assert.equal(wordLikeCount('高中 Hello world 2026'),5);});
+
+test('exclude internal placeholder nodes from visible messages',()=>{
+ const mapping={
+ a:{parent:null,message:{author:{role:'assistant'},content:{content_type:'thoughts',parts:['internal']}}},
+ b:{parent:'a',message:{author:{role:'assistant'},content:{content_type:'text',parts:['{ reasoning_recap：非文字或尚未支援的內容 }']}}},
+ c:{parent:'b',message:{author:{role:'assistant'},content:{content_type:'text',parts:['2052年結尾']}}}
+ };
+ const result=parseConversation({current_node:'c',mapping});
+ assert.deepEqual(result.messages.map(m=>m.text),['2052年結尾']);
+});
