@@ -1,25 +1,26 @@
 import {parseConversation,totalWords,findMessages} from './reader-core.mjs';
 import {splitMessages,splitHtmlVolumes,htmlDocument,richClipboard} from './reader-export.mjs';
-let active=null;
+let active=null,copyChunks=null;
 self.onmessage=async({data})=>{
   const {type,request}=data;
-  if(type==='close'){active=null;return;}
+  if(type==='close'){active=null;copyChunks=null;return;}
   try{
     if(type==='open'){
       if(!(data.blob instanceof Blob))throw Error('來源資料無效');
       // Limit is a client memory safeguard, not the Render 16 MB limit.
       if(data.blob.size>128*1024*1024)throw Error('單段 JSON 超過本機閱讀器目前 128 MiB 安全處理上限；沒有截斷資料');
       const json=JSON.parse(await data.blob.text());
-      active=parseConversation(json);
+      active=parseConversation(json);copyChunks=null;
       postMessage({type:'opened',request,title:active.title,count:active.messages.length,words:totalWords(active.messages),summary:active.summary});
     }else if(type==='copyPlan'){
       if(!active)throw Error('請先開啟對話');
-      const chunks=splitMessages(active.messages);
-      postMessage({type:'copyPlan',request,chunks:chunks.map(c=>({start:c.start,count:c.messages.length})),total:active.messages.length});
+      const first=data.first==null?1:Number(data.first),last=data.last==null?active.messages.length:Number(data.last);
+      if(!Number.isSafeInteger(first)||!Number.isSafeInteger(last)||first<1||last<first||last>active.messages.length)throw Error('複製範圍無效');
+      copyChunks=splitMessages(active.messages.slice(first-1,last)).map(c=>({...c,start:c.start+first-1}));
+      postMessage({type:'copyPlan',request,chunks:copyChunks.map(c=>({start:c.start,count:c.messages.length})),total:active.messages.length});
     }else if(type==='copyChunk'){
       if(!active)throw Error('請先開啟對話');
-      const chunks=splitMessages(active.messages);
-      const chunk=chunks[data.index];if(!chunk)throw Error('複製批次不存在');
+      const chunk=copyChunks?.[data.index];if(!chunk)throw Error('複製批次不存在');
       postMessage({type:'copyChunk',request,index:data.index,start:chunk.start,count:chunk.messages.length,payload:richClipboard(chunk.messages)});
     }else if(type==='htmlPlan'){
       if(!active)throw Error('請先開啟對話');
