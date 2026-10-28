@@ -68,16 +68,17 @@ function render(messages){
     const article=document.createElement('article');article.className='reader-message';
     const heading=document.createElement('h3');heading.textContent=m.role==='user'?'使用者':m.role==='assistant'?'ChatGPT':'其他訊息';
     const body=makeBody(m.text);
-    const copy=document.createElement('button');copy.className='secondary';copy.textContent='複製此則文字';copy.type='button';
-    copy.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(m.text);status('已複製單則文字（尚非含格式全文複製）');}catch(e){status('複製失敗：'+e.message);}});
-    article.append(heading,body,copy);target.append(article);
+    article.append(heading,body);target.append(article);
   }
 }
 async function showPage(next){
   if(!active)return;page=Math.max(0,Math.min(next,Math.ceil(active.count/50)-1));
   const data=await ask('page',{page});render(data.messages);
-  $('reader-page').textContent='第 '+(page+1)+'／'+Math.ceil(active.count/50)+' 頁（每頁 50 則）';
+  const label='第 '+(page+1)+'／'+Math.ceil(active.count/50)+' 頁（訊息 '+(page*50+1)+'～'+Math.min((page+1)*50,active.count)+'／'+active.count+'）';
+  $('reader-page').textContent=label;
+  $('reader-page-bottom').textContent=label;
   $('reader-prev').disabled=page===0;$('reader-next').disabled=(page+1)*50>=active.count;
+  $('reader-prev-bottom').disabled=page===0;$('reader-next-bottom').disabled=(page+1)*50>=active.count;
 }
 export function mountReader({extract,isBusy}){
   function close(){
@@ -88,6 +89,10 @@ export function mountReader({extract,isBusy}){
   $('reader-close').addEventListener('click',close);
   $('reader-prev').addEventListener('click',()=>void showPage(page-1));
   $('reader-next').addEventListener('click',()=>void showPage(page+1));
+  $('reader-prev-bottom').addEventListener('click',()=>void showPage(page-1));
+  $('reader-next-bottom').addEventListener('click',()=>void showPage(page+1));
+  $('reader-last').addEventListener('click',()=>void showPage(Math.ceil(active.count/50)-1));
+  $('reader-first').addEventListener('click',()=>void showPage(0));
   $('reader-search').addEventListener('input',()=>{
     clearTimeout(searchTimer);
     searchTimer=setTimeout(async()=>{
@@ -121,7 +126,7 @@ export function mountReader({extract,isBusy}){
         const result=await ask('open',{blob});active=result;
         const mark=result.summary.nonText?' · 有 '+result.summary.nonText+' 處特殊內容待人工核對':'';
         status('主線正文 '+result.count+' 則 · 約 '+result.words.toLocaleString('zh-TW')+' 字（參考 Word 計數，非官方 Word 精確值）'+mark);
-        $('reader-scope').textContent='原始節點 '+result.summary.rawNodes+'；非主線 '+result.summary.offBranch+'；排除隱藏／系統／工具類 '+result.summary.hidden+'。HTML 僅顯示目前主線的可還原內容。';
+        $('reader-scope').textContent='請注意：畫面每次僅顯示 50 則訊息，捲到底部不等於對話結尾。請使用「最後一頁」確認結尾。原始節點 '+result.summary.rawNodes+'；非主線 '+result.summary.offBranch+'；排除隱藏／系統／工具類 '+result.summary.hidden+'。HTML 僅顯示目前主線的可還原內容。';
         $('reader-search').value='';$('reader-hits').replaceChildren();
         await showPage(0);$('reader-panel').scrollIntoView({block:'start',behavior:'smooth'});
       }catch(e){status('無法開啟閱讀版：'+e.message);}
