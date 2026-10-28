@@ -23,6 +23,8 @@ jobs:
           node-version: '22'
       - name: Syntax and reader unit tests
         run: |
+          python3 -m unittest discover -s tests -p test_share_reader.py
+          python3 -m py_compile server.py json_api.py official_worker.py
           node --check docs/local-backup/app.mjs
           node --check docs/local-backup/reader-core.mjs
           node --check docs/local-backup/reader-worker.mjs
