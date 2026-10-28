@@ -27,6 +27,7 @@ function makeBody(text){
   const lines=text.split(/\n/);let code=null,list=null;
   for(let i=0;i<lines.length;i++){
     const line=lines[i];
+    if(!line.trim() && (!i || !lines[i-1].trim() || i===lines.length-1))continue;
     if(/^\s*```/.test(line)){
       list=null;
       if(code){body.append(code);code=null;}else code=document.createElement('pre');
@@ -77,6 +78,7 @@ async function showPage(next){
   const label='第 '+(page+1)+'／'+Math.ceil(active.count/50)+' 頁（訊息 '+(page*50+1)+'～'+Math.min((page+1)*50,active.count)+'／'+active.count+'）';
   $('reader-page').textContent=label;
   $('reader-page-bottom').textContent=label;
+  $('reader-jump').max=String(Math.ceil(active.count/50));$('reader-jump').value=String(page+1);
   $('reader-prev').disabled=page===0;$('reader-next').disabled=(page+1)*50>=active.count;
   $('reader-prev-bottom').disabled=page===0;$('reader-next-bottom').disabled=(page+1)*50>=active.count;
 }
@@ -93,6 +95,11 @@ export function mountReader({extract,isBusy}){
   $('reader-next-bottom').addEventListener('click',()=>void showPage(page+1));
   $('reader-last').addEventListener('click',()=>void showPage(Math.ceil(active.count/50)-1));
   $('reader-first').addEventListener('click',()=>void showPage(0));
+  $('reader-first-top').addEventListener('click',()=>void showPage(0));
+  $('reader-last-top').addEventListener('click',()=>void showPage(Math.ceil(active.count/50)-1));
+  const jump=()=>{const value=Number($('reader-jump').value);if(Number.isSafeInteger(value)&&value>=1&&value<=Math.ceil(active.count/50))void showPage(value-1);else status('頁碼超出範圍，請輸入有效頁數。');};
+  $('reader-go').addEventListener('click',jump);
+  $('reader-jump').addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();jump();}});
   $('reader-search').addEventListener('input',()=>{
     clearTimeout(searchTimer);
     searchTimer=setTimeout(async()=>{
