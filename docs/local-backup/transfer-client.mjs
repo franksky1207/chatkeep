@@ -47,4 +47,3 @@ export async function sendPrepared(prepared,{send,collector,signal,indices,wait=
  return collector;
  }catch(e){if(e.name==='AbortError')collector.cancel?.();throw e;}finally{collector.sending=false;}
 }
-
