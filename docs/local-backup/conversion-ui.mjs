@@ -24,7 +24,7 @@ export function mountConversion({getSelected,extract,setLocked,queueFactory=opti
  const service=value=>{$('service-status').textContent=value;};
  function configure(){
   const value=$('api-base').value.trim();$('api-base').removeAttribute('aria-invalid');
-  if(!value){service('開發預覽版：尚未設定新版轉換服務。仍可在本機搜尋備份、下載原始 JSON。');return;}
+  if(!value){service('尚未設定轉換服務。仍可在本機搜尋備份、下載原始 JSON。');return;}
   try{apiBase(value);service('已指定轉換服務，尚未驗證是否支援新版功能。只有開始轉換時才會連線。');}
   catch{$('api-base').setAttribute('aria-invalid','true');service('轉換服務網址無效：請使用 HTTPS，或本機 localhost 的 HTTP；不要包含帳密、路徑或查詢參數。');}
  }
@@ -41,10 +41,11 @@ export function mountConversion({getSelected,extract,setLocked,queueFactory=opti
   const download=button('下載成果',()=>{
    const artifact=job.artifact;if(!artifact)return;const url=URL.createObjectURL(artifact.blob);urls.add(url);
    const a=document.createElement('a');a.href=url;a.download=safeFilename(artifact.filename,artifact.artifact_type);document.body.append(a);a.click();a.remove();
-   job.downloadRequested=true;notify('已啟動下載；請確認瀏覽器已保存，再釋放成果。網站無法確認磁碟保存狀態。');draw();
+   job.downloadRequested=true;notify('已啟動下載；請確認瀏覽器已保存，再清除暫存 Word。網站無法確認磁碟保存狀態。');draw();
    setTimeout(()=>{URL.revokeObjectURL(url);urls.delete(url);},1000);
   },false);
-  const release=button('釋放成果',()=>{job.type=job.artifact.artifact_type;queue.release(job);revoke();($('continue-conversion').disabled?$('conversion-title'):$('continue-conversion')).focus();});
+  const release=button('清除暫存 Word（不影響已下載檔案）',()=>{job.type=job.artifact.artifact_type;queue.release(job);revoke();($('continue-conversion').disabled?$('conversion-title'):$('continue-conversion')).focus();});
+  release.setAttribute('aria-description','僅清除本頁暫存檔，不影響已下載檔案；完整性報告保留。');
   const retry=button('重試失敗對話',()=>{$('conversion-title').focus();void resume();});
   const skip=button('略過失敗對話',()=>{queue.skip(job);$('conversion-title').focus();void resume();});
   return {card,title,titleDetails,fullTitle,badge,stage,error,errorDetails,errorCode,report,downloadNote,download,release,retry,skip,reported:null};
@@ -91,7 +92,7 @@ export function mountConversion({getSelected,extract,setLocked,queueFactory=opti
  }
  async function start(items){
   if(active)return;
-  if(queue?.jobs.some(job=>job.artifact)){notify('還有尚未釋放的成果。請先下載並釋放成果，或清除全部結果後，再開始新的轉換。');$('conversion-title').focus();return;}
+  if(queue?.jobs.some(job=>job.artifact)){notify('還有尚未釋放的成果。請先下載並清除暫存 Word，或清除全部轉換紀錄與暫存後，再開始新的轉換。');$('conversion-title').focus();return;}
   const current=++epoch;let started=false;
   try{
    // Validate before discarding a previous successful queue.
@@ -109,7 +110,7 @@ export function mountConversion({getSelected,extract,setLocked,queueFactory=opti
  $('continue-conversion').addEventListener('click',()=>void resume());
  const cancel=()=>{queue?.cancel();revoke();notify('已取消；已完成段落仍可下載。Render 子程序可能持續至後端期限。');if(!queue?.running){active=false;setLocked(false);}draw();};
  $('cancel-conversion').addEventListener('click',cancel);
- const clear=()=>{epoch++;queue?.dispose();queue=null;active=false;cards.clear();revoke();setLocked(false);notify('已清除全部轉換結果與成果暫存。');draw();};
+ const clear=()=>{epoch++;queue?.dispose();queue=null;active=false;cards.clear();revoke();setLocked(false);notify('已清除全部轉換紀錄與暫存檔案；已下載的檔案不受影響。');draw();};
  $('clear-conversion').addEventListener('click',clear);
  $('queue-prev').addEventListener('click',()=>{page--;draw();});$('queue-next').addEventListener('click',()=>{page++;draw();});
  $('queue-current').addEventListener('click',()=>{const i=queue?.jobs.findIndex(j=>j.state==='working');if(i>=0){page=Math.floor(i/PAGE_SIZE);draw();}});
