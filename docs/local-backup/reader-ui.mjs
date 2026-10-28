@@ -166,6 +166,7 @@ export function mountReader({extract,isBusy}){
   });
   return {
     close,
+    async openShared(source){return this.open({title:source.title||'公開分享對話',shared:source});},
     async open(item){
       if(isBusy())return;
       close();$('reader-panel').hidden=false;$('reader-title').textContent=item.title;status('正在本機解析對話……');
@@ -176,12 +177,11 @@ export function mountReader({extract,isBusy}){
       };
       instance.onerror=()=>status('閱讀器背景工作停止，請減少資料量或改用電腦');
       try{
-        const blob=await extract(item);
-        const result=await ask('open',{blob});active=result;
+        const result=item.shared?await ask('openShared',{source:item.shared}):await ask('open',{blob:await extract(item)});active=result;
 
         const mark=result.summary.nonText?' · 有 '+result.summary.nonText+' 處特殊內容待人工核對':'';
         status('主線正文 '+result.count+' 則 · 約 '+result.words.toLocaleString('zh-TW')+' 字（參考 Word 計數，非官方 Word 精確值）'+mark);
-        $('reader-scope').textContent='請注意：畫面每次僅顯示 50 則訊息，捲到底部不等於對話結尾。請使用「最後一頁」確認結尾。原始節點 '+result.summary.rawNodes+'；非主線 '+result.summary.offBranch+'；排除隱藏／系統／工具類 '+result.summary.hidden+'。HTML 僅顯示目前主線的可還原內容。';
+        $('reader-scope').textContent=(item.shared?'資料來自公開分享連結，內容由 Render 擷取；來源格式可能無法驗證所有分支。':'')+'請注意：畫面每次僅顯示 50 則訊息，捲到底部不等於對話結尾。請使用「最後一頁」確認結尾。原始節點 '+result.summary.rawNodes+'；非主線 '+result.summary.offBranch+'；排除隱藏／系統／工具類 '+result.summary.hidden+'。HTML 僅顯示目前主線的可還原內容。';
         $('reader-search').value='';$('reader-hits').replaceChildren();
         await showPage(0);$('reader-panel').scrollIntoView({block:'start',behavior:'smooth'});
       }catch(e){status('無法開啟閱讀版：'+e.message);}
