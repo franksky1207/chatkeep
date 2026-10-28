@@ -10,19 +10,14 @@ function ask(type,args={}){
 }
 function status(text){$('reader-status').textContent=text;}
 function richInline(target,text){
-  // Render a conservative Markdown subset with DOM nodes; never trust HTML markup from backups.
-  const pattern=/(\\*\\*[^*\\n]+\\*\\*|\\*[^*\\n]+\\*|`[^`\\n]+`|\\[[^\\]\\n]+\\]\\(https?:\\/\\/[^)\\s]+\\))/g;
+  // Only known Markdown emphasis/code; all other source text remains literal.
+  const pattern=/(\*\*[^*\n]+\*\*|\*[^*\n]+\*|`[^`\n]+`)/g;
   let cursor=0;
   for(const match of text.matchAll(pattern)){
-    const position=match.index;if(position>cursor)target.append(document.createTextNode(text.slice(cursor,position)));
-    const value=match[0];let node;
-    if(value.startsWith('**')){node=document.createElement('strong');node.textContent=value.slice(2,-2);}
-    else if(value.startsWith('*')){node=document.createElement('em');node.textContent=value.slice(1,-1);}
-    else if(value.startsWith('`')){node=document.createElement('code');node.textContent=value.slice(1,-1);}
-    else{
-      const m=/^\\[([^\\]]+)\\]\\((https?:\\/\\/[^)\\s]+)\\)$/.exec(value);
-      node=document.createElement('a');node.textContent=m[1];node.href=m[2];node.target='_blank';node.rel='noopener noreferrer';
-    }
+    const position=match.index;
+    if(position>cursor)target.append(document.createTextNode(text.slice(cursor,position)));
+    const value=match[0],node=document.createElement(value.startsWith('**')?'strong':value.startsWith('*')?'em':'code');
+    node.textContent=value.slice(value.startsWith('**')?2:1,value.startsWith('**')?-2:-1);
     target.append(node);cursor=position+value.length;
   }
   if(cursor<text.length)target.append(document.createTextNode(text.slice(cursor)));
