@@ -26,3 +26,24 @@ test('ZIP archive includes verifiable entries and CRC',async()=>{
  assert.equal(view.getUint32(bytes.length-22,true),0x06054b50);
  assert.equal(view.getUint16(bytes.length-12,true),2);
 });
+
+test('long conversation preserves chronological first and final message across HTML volumes',()=>{
+ const messages=Array.from({length:1800},(_,i)=>({role:i%2?'assistant':'user',text:'長對話 第'+i+'則；'.repeat(120)}));
+ const volumes=splitHtmlVolumes(messages,40000);
+ const flattened=volumes.flatMap(x=>x.messages);
+ assert.equal(flattened.length,messages.length);
+ assert.equal(flattened[0].text,messages[0].text);
+ assert.equal(flattened.at(-1).text,messages.at(-1).text);
+ assert.deepEqual(flattened,messages);
+ for(const volume of volumes){
+   const rendered=htmlDocument('長篇測試',volume.messages,volume.start,messages.length);
+   assert.equal((rendered.match(/class="message"/g)||[]).length,volume.messages.length);
+ }
+});
+test('large copy batches maintain exact message boundaries',()=>{
+ const messages=Array.from({length:1500},(_,i)=>({role:i%2?'assistant':'user',text:'內容 '+i+'。'.repeat(200)}));
+ const batches=splitMessages(messages,25000);
+ assert.ok(batches.length>1);
+ assert.deepEqual(batches.flatMap(c=>c.messages),messages);
+ assert.equal(batches.at(-1).start+batches.at(-1).messages.length,messages.length);
+});
