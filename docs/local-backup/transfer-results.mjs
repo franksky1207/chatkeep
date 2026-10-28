@@ -42,7 +42,7 @@ export class TransferResults{
    check(signal);if(this.cancelled)fail('TRANSFER_CANCELLED');this.results.set(index,{files,bytes:total,volumes:report.volumes.map(v=>({...v})),warnings:structuredClone(report.warnings)});
   }catch(e){if(e.name==='AbortError')this.cancel();throw e;}finally{this.busy=false;}
  }
- async finish({signal}={}){
+ async finish({signal,onStage=()=>{}}={}){
   if(signal?.aborted)this.cancel();check(signal);if(this.cancelled)fail('TRANSFER_CANCELLED');if(this.busy)fail('BUSY');this.busy=true;
   try{
   const {manifest}=this.prepared;if(canonical(manifest)!==this.manifestCanonical)fail('MANIFEST_MISMATCH');if(this.results.size!==manifest.parts.length)fail('MISSING_PART');
@@ -56,7 +56,7 @@ export class TransferResults{
   for(let i=0;i<this.prepared.chunks.length;i++)if(await partSha(this.prepared.chunks[i].messages)!==manifest.parts[i].sequence_sha256)fail('MANIFEST_MISMATCH');
   const ids=new Set();let chars=0;for(const chunk of this.prepared.chunks)for(const m of chunk.messages){if(ids.has(m.id))fail('DUPLICATE_MESSAGE');ids.add(m.id);chars+=charCount(m.text);}
   if(chars!==manifest.total_text_chars||ids.size!==manifest.total_message_count)fail('PART_COUNT');
-  const single=files.length===1,blob=single?new Blob([files[0].blob],{type:DOCX}):await writeZip(files,{signal});
+  const single=files.length===1;if(!single)onStage('ZIP 封裝');const blob=single?new Blob([files[0].blob],{type:DOCX}):await writeZip(files,{signal});
   if(single)volumes[0].filename=safeStem(manifest.title)+'.docx';check(signal);if(this.cancelled)fail('TRANSFER_CANCELLED');
   return {blob,filename:safeStem(manifest.title)+(single?'.docx':'_完整對話.zip'),artifact_type:single?'docx':'zip',mime_type:single?DOCX:'application/zip',
    report:{status:'converted_with_warnings',complete:true,all_parts_verified:true,source_verified_by_server:false,integrity_basis:'browser_derived_sequence',

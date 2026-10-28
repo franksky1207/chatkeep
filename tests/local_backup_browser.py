@@ -195,7 +195,9 @@ def run(stress=False, engine='chromium'):
                 for width in [1280,390,320]:
                     page.set_viewport_size({'width':width,'height':900})
                     assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
-                    assert page.locator('a[href="https://chatkeep.onrender.com/"]').count()==2
+                    assert page.locator('#convert-share').count()==1
+                    assert page.locator('#convert-selected').count()==1
+                    assert page.locator('a[href="https://chatkeep.onrender.com/"]').count()==1
                 denied=context.new_page()
                 denied.add_init_script("Object.defineProperty(navigator.storage,'getDirectory',{value:async()=>{throw new DOMException('denied','SecurityError')}})")
                 denied.goto(f'http://127.0.0.1:{server.server_port}/')

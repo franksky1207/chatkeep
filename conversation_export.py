@@ -85,7 +85,7 @@ def export_conversation(model, source, source_report=None, capacity=CAPACITY, al
             verify_docx(data, first+1+message_offset, cursor+message_offset)
             entry = {'number': number, 'first_message': first+1+message_offset, 'last_message': cursor+message_offset,
                      'message_count': cursor-first, 'sequence_sha256': digest(messages[first:cursor]),
-                     'docx_bytes': len(data), 'structure': {'elements': volume.stats[0],
+                     'docx_bytes': len(data), 'file_sha256': hashlib.sha256(data).hexdigest(), 'structure': {'elements': volume.stats[0],
                       'xml_bytes': volume.stats[1], 'table_cells': volume.stats[2]}}
             rendering_count += len(volume.warnings)
             if warnings_out is not None: warnings_out.extend(volume.warnings)

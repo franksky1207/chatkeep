@@ -125,8 +125,22 @@ class Application:
             return response('403 Forbidden', '主機不在允許清單。')
         method, path = env.get('REQUEST_METHOD'), env.get('PATH_INFO')
         if path in ('/api/convert-json', '/api/convert-v2', '/api/convert-chunk-v1'):
+            from api_origin import allowed_origin, cors_headers
+            api_headers = HEADERS + cors_headers(env)
+            if method == 'OPTIONS':
+                requested = {x.strip().lower() for x in env.get('HTTP_ACCESS_CONTROL_REQUEST_HEADERS', '').split(',') if x.strip()}
+                accepted = (allowed_origin(env) and bool(env.get('HTTP_ORIGIN')) and
+                            env.get('HTTP_ACCESS_CONTROL_REQUEST_METHOD') == 'POST' and
+                            requested <= {'content-type'} and not env.get('HTTP_COOKIE') and
+                            not env.get('HTTP_AUTHORIZATION'))
+                code = '204 No Content' if accepted else '403 Forbidden'
+                extra = [('Access-Control-Allow-Methods', 'POST'),
+                         ('Access-Control-Allow-Headers', 'Content-Type'),
+                         ('Access-Control-Max-Age', '600')] if accepted else []
+                start_response(code, api_headers + extra + [('Content-Length', '0')])
+                return [b'']
             from json_api import handle
-            return handle(env, start_response, HEADERS, SLOTS, self.rates, mode='share' if path == '/api/convert-v2' else 'chunk' if path == '/api/convert-chunk-v1' else 'official')
+            return handle(env, start_response, api_headers, SLOTS, self.rates, mode='share' if path == '/api/convert-v2' else 'chunk' if path == '/api/convert-chunk-v1' else 'official')
         files = {'/': ('index.html', 'text/html; charset=utf-8'),
                  '/app.js': ('app.js', 'text/javascript; charset=utf-8'),
                  '/style.css': ('style.css', 'text/css; charset=utf-8')}

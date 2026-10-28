@@ -164,7 +164,7 @@ class APITests(unittest.TestCase):
                  (body(), {'CONTENT_TYPE':'application/zip'}, 415, 'UNSUPPORTED_MEDIA_TYPE'),
                  (body(), {'CONTENT_LENGTH':'2000001'}, 413, 'INPUT_TOO_LARGE'),
                  (body(), {'HTTP_ORIGIN':'https://evil.test'}, 403, 'ORIGIN_FORBIDDEN'),
-                 (body(), {'REQUEST_METHOD':'OPTIONS'}, 405, 'METHOD_NOT_ALLOWED'),
+                 (body(), {'REQUEST_METHOD':'PUT'}, 405, 'METHOD_NOT_ALLOWED'),
                  (body(), {'CONTENT_LENGTH':'bad'}, 400, 'INVALID_LENGTH'),
                  (body(), {'HTTP_TRANSFER_ENCODING':'chunked'}, 415, 'UNSUPPORTED_ENCODING'),
                  (body(), {'HTTP_CONTENT_ENCODING':'gzip'}, 415, 'UNSUPPORTED_ENCODING'),

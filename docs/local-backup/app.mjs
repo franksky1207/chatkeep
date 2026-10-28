@@ -1,7 +1,8 @@
+import {mountConversion} from './conversion-ui.mjs';
 import {filterRows,report,seriesNumber,isoDate} from './filters.mjs';
 const $=id=>document.getElementById(id);
 let index=[],selected=new Set(),worker=null,busy=false,directory=null,generation=0,request=0;
-const pending=new Map(),urls=new Set(); let failures=[],completed=0; let cleaning=false;
+const pending=new Map(),urls=new Set(); let failures=[],completed=0; let cleaning=false,conversionLocked=false;
 function status(s,fail=false){$('progress').textContent=s;$('progress').className=fail?'error':'';}
 function safe(s){return String(s||'未命名對話').replace(/[<>:"/\\|?*\x00-\x1f]/g,'_').slice(0,70).trim()||'未命名對話';}
 function date(value){const d=new Date(value*1000);return value!=null&&!Number.isNaN(d.valueOf())?d.toLocaleDateString('zh-TW'):'日期未提供';}
@@ -32,8 +33,9 @@ function preview(item){
     '\n警告：節點欄位不等於可見訊息數；分支、隱藏訊息、內容格式及可匯出訊息數尚未逐一驗證。';
 }
 function controls(){
-  for(const id of ['scan','reset','files','search','select-visible','deselect','series','first','last','date-field','from','to'])$(id).disabled=busy;
-  $('cancel').hidden=!busy; $('cancel').disabled=cleaning; $('download').disabled=busy||!selected.size;
+  for(const id of ['scan','reset','files','search','select-visible','deselect','series','first','last','date-field','from','to','convert-share','api-base','share-url'])$(id).disabled=busy;
+  $('cancel').hidden=!busy||conversionLocked; $('cancel').disabled=cleaning; $('download').disabled=busy||!selected.size;
+  $('convert-selected').disabled=busy||!selected.size;
   $('count').textContent='已選 '+selected.size+' 段';
 }
 function display(){
@@ -50,6 +52,7 @@ function display(){
   $('results').replaceChildren(frag);controls();summary(rows);
 }
 async function release(){
+  conversion.clear();busy=true;
   cleaning=true;generation++;const oldWorker=worker;worker=null;
   if(oldWorker){
     await new Promise(resolve=>{
@@ -82,8 +85,14 @@ async function clear(message,clearFiles=false){
   catch(e){status(e.message,true);}
   finally{busy=false;controls();}
 }
-function extract(item){
-  return new Promise((resolve,reject)=>{const id=++request;pending.set(id,{resolve,reject});worker.postMessage({type:'extract',request:id,source:item.source,start:item.start,end:item.end});});
+function extract(item,signal){
+  return new Promise((resolve,reject)=>{
+    if(signal?.aborted){reject(new DOMException('已取消','AbortError'));return;}
+    if(!worker){reject(Error('PREPARATION_FAILED'));return;}
+    const id=++request;
+    const cancel=()=>{pending.delete(id);reject(new DOMException('已取消','AbortError'));};
+    const finish=fn=>value=>{signal?.removeEventListener('abort',cancel);fn(value);};
+    pending.set(id,{resolve:finish(resolve),reject:finish(reject)});signal?.addEventListener('abort',cancel,{once:true});worker.postMessage({type:'extract',request:id,source:item.source,start:item.start,end:item.end});});
 }
 $('scan').addEventListener('click',async()=>{
   if(busy)return;const files=[...$('files').files];if(!files.length){status('請先選擇 JSON 或官方 ZIP 備份。',true);return;}
@@ -139,4 +148,9 @@ $('download').addEventListener('click',async()=>{
 // A session directory is cleaned on explicit cancel/reset. Browsers may retain it after a crash;
 // the UI documents site-storage cleanup instead of deleting another tab's files heuristically.
 window.addEventListener('pagehide',()=>{worker?.terminate();for(const url of urls)URL.revokeObjectURL(url);if(directory&&navigator.storage?.getDirectory)void navigator.storage.getDirectory().then(root=>root.removeEntry(directory,{recursive:true})).catch(()=>{});});
+const conversion=mountConversion({
+ getSelected:()=>index.filter(x=>selected.has(x.key)),
+ extract:(item,signal)=>{if(item.end-item.start>16_000_000){const e=Error('SELECTED_SOURCE_LIMIT');e.code=e.message;throw e;}return extract(item,signal);},
+ setLocked:value=>{conversionLocked=value;busy=value;display();}
+});
 controls();

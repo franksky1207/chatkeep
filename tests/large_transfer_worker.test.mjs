@@ -41,3 +41,13 @@ test('request deadline reports BATCH_TIMEOUT rather than user cancellation',asyn
   await assert.rejects(()=>promise,e=>e.code==='BATCH_TIMEOUT');assert(aborted);
  }finally{t.mock.timers.reset();}
 });
+test('preparation worker runtime failure releases admission and a new worker can restart',async()=>{
+ const old=globalThis.Worker;
+ class CrashingWorker extends WorkerAdapter{
+  constructor(){super();this.thread.terminate();queueMicrotask(()=>this.onerror?.(Error('synthetic worker crash')));}
+ }
+ try{
+  globalThis.Worker=CrashingWorker;await assert.rejects(()=>prepareInWorker(source(10)),/PREPARATION_FAILED/);await workers.at(-1).exit;
+  globalThis.Worker=WorkerAdapter;const prepared=await prepareInWorker(source(10));assert.equal(prepared.mode,'official');await workers.at(-1).exit;
+ }finally{globalThis.Worker=old;}
+});

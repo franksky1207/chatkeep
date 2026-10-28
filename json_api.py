@@ -1,4 +1,4 @@
-"""Independent JSON API transport; same-origin until batch 6 integration."""
+"""Bounded anonymous JSON transport with explicit browser origin policy."""
 from http import HTTPStatus
 import json
 from pathlib import Path
@@ -6,7 +6,7 @@ import socket
 import subprocess
 import sys
 from threading import Event, Timer
-from urllib.parse import urlsplit
+from api_origin import allowed_origin
 from official_json import MAX_INPUT
 
 UPLOAD_TIMEOUT = 10
@@ -28,14 +28,8 @@ def handle(env, start_response, headers, slots, rates, mode='official'):
 
     if env.get('REQUEST_METHOD') != 'POST':
         return error(405, 'METHOD_NOT_ALLOWED', '請使用 POST。')
-    try:
-        origin = env.get('HTTP_ORIGIN')
-        parsed = urlsplit(origin) if origin else None
-        if (env.get('HTTP_SEC_FETCH_SITE') == 'cross-site' or
-            (parsed and (parsed.scheme not in ('http', 'https') or parsed.netloc != env.get('HTTP_HOST') or parsed.path or parsed.query or parsed.fragment))):
-            return error(403, 'ORIGIN_FORBIDDEN', '請求來源未獲允許。')
-    except ValueError:
-        return error(403, 'ORIGIN_FORBIDDEN', '請求來源未獲允許。')
+    if not allowed_origin(env) or env.get('HTTP_COOKIE') or env.get('HTTP_AUTHORIZATION'):
+        return error(403, 'ORIGIN_FORBIDDEN', '請求來源未獲允許或帶有認證資訊。')
     if env.get('CONTENT_TYPE', '').lower() not in ('application/json', 'application/json; charset=utf-8'):
         return error(415, 'UNSUPPORTED_MEDIA_TYPE', '只接受 UTF-8 application/json。')
     if env.get('HTTP_TRANSFER_ENCODING') or env.get('HTTP_CONTENT_ENCODING') or env.get('CONTENT_ENCODING'):
