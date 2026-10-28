@@ -34,6 +34,8 @@ export function parseConversation(source){
       }
     }else if(content!=null){nonText++;parts.push('〔尚未支援的訊息結構〕');warnings.push('訊息 '+key+' 的結構尚未支援');}
     const text=parts.join('\n');
+    // Do not surface internal-only or placeholder-only messages as conversation.
+    if(/^\\s*[〔\\[{（(]?\\s*(?:thoughts|reasoning_recap|reasoning_recap_summary|model_editable_context|analysis)\\s*[:：]/i.test(text)) {hidden++;continue;}
     if(!text.trim())continue;
     messages.push({id:key,role:role==='user'?'user':role==='assistant'?'assistant':'other',text});
   }
