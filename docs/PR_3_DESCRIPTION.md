@@ -1,16 +1,22 @@
-新增 GitHub Pages 雙入口主網站：保留既有公開分享連結前往 Render 的功能，並在瀏覽器本機搜尋、選取及下載官方備份中的對話 JSON。此 PR 涵蓋第 1、2 批；不包含 JSON → Word API 或後續整合。備份不會上傳 GitHub、Render 或第三方。
+ChatKeep v1.1.0 開發分支：GitHub Pages 在瀏覽器本機索引、搜尋及擷取使用者選中的官方對話；新增後端單一官方對話 JSON → 可編輯 Word API。分享連結與官方 JSON 共用既有 Word 核心。**維持 Draft，尚未合併或部署。**
 
-第 2 批將整份 `file.text()`／`JSON.parse()` 改為 Web Worker 中的 256 KiB 增量 JSON 語法解析，驗證 UTF-8 跨區塊字元，僅保留必要索引與原始位元組位置。下載直接切出完整原始對話物件，保留未知欄位、分支、隱藏及工具節點，不重新序列化。多來源部分失敗可恢復，另有進度、取消、清理與競態防護。
+## 第 1～3 批
 
-ZIP 在本機驗證中央目錄／標頭／大小／CRC，只逐項解壓 conversations JSON 至 OPFS。壓縮輸入、磁碟寫入及索引均有預算；不支援 ZIP64、加密、分卷或異常高壓縮比例時，明確提示先在電腦解壓。沒有第三方 CDN 或新增函式庫。大型 ZIP 建議一般瀏覽模式，無痕模式暫存可能占用大量記憶體。
+- 本機逐檔／增量索引 JSON，ZIP 逐項解壓至 OPFS，下載指定對話保留來源原始 UTF-8 位元組；未選取對話不傳送。
+- 搜尋支援標題、UTC 日期、系列編號範圍交集；搜尋結果全選、索引預覽、缺號／重號及來源報告。mapping 節點數不冒充可見或可匯出訊息數。
+- 第 2 批合成 JSON／ZIP、Chromium 及 440 MiB 測試證據見 `docs/BATCH_2_LOCAL_BACKUP.md`；第 3 批 3 個 Node 篩選測試已通過，實機驗收延至第 8 批，見 `docs/BATCH_3_SEARCH_REPORT.md`。
 
-驗證：
+## 第 4 批：JSON → Word API
 
-- `node tests/local_backup.test.mjs`：9 組通過，包含 Unicode／跳脫／深層 mapping、完整結構與位元組定位、3,500 筆索引、2,500 次語法差異案例、ZIP 損壞與資源防護。
-- Chromium 154.0.8037.57 實際瀏覽器功能測試通過：多 JSON／ZIP、365 筆搜尋勾選、同標題的個別／多檔下載、部分失敗、取消／OPFS 清理、儲存權限拒絕回退，以及 1280／390／320 px 排版。無對外請求或未捕捉頁面錯誤。
-- 440 MiB（461,373,440 bytes）合成資料已實測，非僅 Node 推論：多對話 JSON 7.90 秒、ZIP 解壓＋索引 11.96 秒、單一巨大 mapping 7.41 秒。一般瀏覽的 RSS 增幅約 55／92／42 MiB，量測為程序 RSS 加總，含重複共享頁，非瀏覽器硬上限。主介面 heartbeat 持續運作；指定對話與整段巨大對話以來源 SHA-256 核對通過。
-- 所有大型資料於測試期間產生並清除，未提交備份或私人資料。只執行第 2 批測試，未啟動完整回歸或不相關 Actions。
+- `POST /api/convert-json`，UTF-8 `application/json`，本文直接為一個已選取的官方對話物件；拒絕整包陣列、ZIP 及 conversations 包裝。
+- 以 current_node／parent 決定唯一有效分支，驗證循環、父子關係、重複訊息與內容格式；沿用 `chatkeep.normalize()` 及 `word_export.build_docx(rich=True)`。沒有第二套 Word 產生器。
+- 共用 `rich_word.py` 補上行內粗斜體、程式碼字型與安全原生超連結，保留既有程式碼區塊、表格、UI 及 Word 結尾段落規則。
+- 成功回傳 Base64 DOCX、安全檔名及報告，區分原始節點、有效路徑訊息、實際輸出訊息；隱藏／工具／空節點及非當前分支明確計數警告。未支援可見內容或未完成訊息明確失敗，不輸出看似完整的部分文件。
+- 2 MB 本文、32 層、5,000 原始節點、2,000 輸出訊息、100 萬總字元／單則 10 萬字元；未提高既有 Word 上限。共享速率及轉換名額，Gunicorn 上傳 10 秒、子程序轉換 45 秒、CPU 30／31 秒、位址空間 384 MiB，逾時終止並回收程序。
+- 不擷取 JSON 內 URL、不持久保存對話或記錄本文；同 host 來源檢查、沒有萬用 CORS。既有 `/api/convert` NDJSON 分享連結介面保留。
 
-限制：Safari／實體手機／Firefox 未驗證；WebKit 因環境缺少系統函式庫未能啟動。無痕模式 ZIP 曾觀察較高記憶體，不保證手機能處理 440 MiB。完整架構、效能量測與限制見 `docs/BATCH_2_LOCAL_BACKUP.md`。
+驗證：66 個必要單元／整合測試通過（第 4 批專屬 15 個），含既有分享連結與 Word 排版回歸；本機 Gunicorn JSON 成功／錯誤、可重新開啟 DOCX、10 秒停滯上傳中止／名額重用及日誌隱私通過；既有非 live production smoke test 通過。API 範例、錯誤碼、完整性規則、限制及測試命令見 `docs/BATCH_4_JSON_API.md`。
 
-保持 Draft。沒有修改 Python 後端、Render 部署、既有 `web/` 或 Actions；不合併、不啟用 Pages、不部署 Render、不建立 Release。第 3 批及其他批次未開始。
+後續界線：大型對話／分卷是第 5 批；Pages 連接 Render／跨站 CORS／前端取消是第 6 批，尚未開發。真實官方備份、手機／桌機、Microsoft Word 與 Render Free 實機驗收統一留第 8 批。384 MiB 是子程序位址空間限制，不是整個服務 RSS／免費 Render 壓測保證；同步轉換在客戶端斷線後最遲依 45 秒期限中止。
+
+本批沒有修改正式 Render v1.0.0、Render 部署設定、Pages UI 或 Actions，沒有觸發 Actions、合併 main、部署、啟用 Pages 或建立 Release。

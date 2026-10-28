@@ -5,6 +5,8 @@ No screenshots; all text is native Word runs or table cell content.
 import re
 import textwrap
 from docx.shared import Pt, RGBColor
+from docx.opc.constants import RELATIONSHIP_TYPE as RT
+from urllib.parse import urlsplit
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from semantic import Node, parse, flatten
@@ -16,6 +18,44 @@ CLOCK = re.compile(r"^\d{1,2}:\d{2}(?:\s|$)")
 DIVIDER = re.compile(r"^\s*[-*_]{3,}\s*$")
 CELL_LIMIT = 12
 
+# One inline renderer for both sources; unknown/unsafe syntax remains literal.
+INLINE = re.compile(r"(?<!`)(`)([^`\n]+)\1(?!`)|\*\*([^*\n]+)\*\*|(?<!\*)\*([^*\n]+)\*(?!\*)|\[([^][\n]+)\]\(([^\s)]+)\)")
+
+
+def inline(paragraph, value):
+    cursor = 0
+    for match in INLINE.finditer(value):
+        if match.start() > cursor: paragraph.add_run(value[cursor:match.start()])
+        ticks, code, bold, italic, label, target = match.groups()
+        if target:
+            try:
+                parsed = urlsplit(target)
+                safe = (parsed.scheme in ('http', 'https') and bool(parsed.hostname) and not parsed.username
+                        or parsed.scheme == 'mailto' and bool(parsed.path))
+            except ValueError:
+                safe = False
+            if safe:
+                link = OxmlElement('w:hyperlink')
+                link.set(qn('r:id'), paragraph.part.relate_to(target, RT.HYPERLINK, is_external=True))
+                run = OxmlElement('w:r')
+                props = OxmlElement('w:rPr')
+                color = OxmlElement('w:color'); color.set(qn('w:val'), '0563C1'); props.append(color)
+                underline = OxmlElement('w:u'); underline.set(qn('w:val'), 'single'); props.append(underline)
+                run.append(props)
+                text = OxmlElement('w:t'); text.set(qn('xml:space'), 'preserve'); text.text = label
+                run.append(text); link.append(run); paragraph._p.append(link)
+            else:
+                paragraph.add_run(match.group())
+        else:
+            # Retain inline code delimiters for the existing literal-source contract.
+            run = paragraph.add_run(match.group() if ticks else bold if bold is not None else italic)
+            if ticks: run.font.name = 'Consolas'
+            elif bold is not None: run.bold = True
+            else: run.italic = True
+        cursor = match.end()
+    if cursor < len(value): paragraph.add_run(value[cursor:])
+
+
 def shade(cell, fill="EDF4EF"):
     tcpr = cell._tc.get_or_add_tcPr()
     shd = OxmlElement("w:shd")
@@ -23,7 +63,8 @@ def shade(cell, fill="EDF4EF"):
     tcpr.append(shd)
 
 def celltext(cell, value):
-    cell.text = value
+    cell.text = ''
+    inline(cell.paragraphs[0], value)
     for p in cell.paragraphs:
         p.paragraph_format.widow_control = True
         p.paragraph_format.space_after = Pt(1)
@@ -57,7 +98,7 @@ def markdown(document, value):
             continue
         heading = HEAD.match(line)
         if heading:
-            document.add_paragraph(heading.group(2), style="Heading %d" % min(len(heading.group(1))+2, 6))
+            inline(document.add_paragraph(style="Heading %d" % min(len(heading.group(1))+2, 6)), heading.group(2))
             i += 1
             continue
         if line.startswith(">"):
@@ -87,7 +128,8 @@ def markdown(document, value):
         if bullet:
             numbered = bullet.group(2)[0].isdigit()
             try:
-                paragraph = document.add_paragraph((bullet.group(2) + ' ' if numbered else '') + bullet.group(3), style="List Number" if numbered else "List Bullet")
+                paragraph = document.add_paragraph(style="List Number" if numbered else "List Bullet")
+                inline(paragraph, (bullet.group(2) + ' ' if numbered else '') + bullet.group(3))
                 if numbered:
                     # Retain explicit source numbering (e.g. 5., 9.) rather than
                     # silently restarting a Word list at 1.
@@ -113,7 +155,7 @@ def markdown(document, value):
         while i < len(lines) and lines[i].strip() and not (HEAD.match(lines[i]) or BULLET.match(lines[i]) or DIVIDER.match(lines[i]) or lines[i].startswith(">") or (lines[i].count("|") >= 2 and i+1 < len(lines) and re.fullmatch(r"[\s|:\-]+", lines[i+1] or "")) or (BUBBLE.match(lines[i]) and BUBBLE.match(lines[i]).group(1))):
             group.append(lines[i])
             i += 1
-        document.add_paragraph("\n".join(group))
+        inline(document.add_paragraph(), "\n".join(group))
 
 def render(document, node):
     kind = node.kind

@@ -114,8 +114,14 @@ class Application:
             return [value]
         host = env.get('HTTP_HOST', '')
         if not valid_host(host):
+            if env.get('PATH_INFO') == '/api/convert-json':
+                return response('403 Forbidden', json.dumps({'ok': False, 'error': {
+                    'code': 'HOST_FORBIDDEN', 'message': '主機不在允許清單。'}}, ensure_ascii=False).encode())
             return response('403 Forbidden', '主機不在允許清單。')
         method, path = env.get('REQUEST_METHOD'), env.get('PATH_INFO')
+        if path == '/api/convert-json':
+            from json_api import handle
+            return handle(env, start_response, HEADERS, SLOTS, self.rates)
         files = {'/': ('index.html', 'text/html; charset=utf-8'),
                  '/app.js': ('app.js', 'text/javascript; charset=utf-8'),
                  '/style.css': ('style.css', 'text/css; charset=utf-8')}
