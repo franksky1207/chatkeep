@@ -232,10 +232,12 @@ $('download-html-selected').addEventListener('click',async()=>{
    }finally{w.terminate();}
   }
   if(!files.length)throw Error('沒有可下載的 HTML');
-  const zip=zipFiles(files),url=URL.createObjectURL(zip);urls.add(url);
-  const a=document.createElement('a');a.href=url;a.download='ChatKeep_HTML_'+items.length+'段.zip';document.body.append(a);a.click();a.remove();
+  const single=files.length===1;
+  const output=single?new Blob([files[0].content],{type:'text/html;charset=utf-8'}):zipFiles(files);
+  const url=URL.createObjectURL(output);urls.add(url);
+  const a=document.createElement('a');a.href=url;a.download=single?files[0].name:'ChatKeep_HTML_'+items.length+'段.zip';document.body.append(a);a.click();a.remove();
   setTimeout(()=>{URL.revokeObjectURL(url);urls.delete(url);},60000);
-  $('export-status').textContent='已啟動 '+items.length+' 段、'+files.length+' 卷 HTML 的 ZIP 下載，請確認檔案已保存。';
+  $('export-status').textContent=single?'已啟動 '+files[0].name+' 下載，請確認檔案已保存。':'已啟動 '+items.length+' 段、'+files.length+' 卷 HTML 的 ZIP 下載，請確認檔案已保存。';
  }catch(e){$('export-status').textContent='批次 HTML 未完成：'+e.message+'。未宣稱全部成功。';}
  finally{busy=false;display();}
 });
