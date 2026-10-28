@@ -10,28 +10,27 @@
 <body>
 <a class="skip-link" href="#main">跳到主要內容</a>
 <main class="wrap" id="main" tabindex="-1">
-<header class="site-header"><p class="eyebrow">CHATKEEP</p><h1>ChatKeep｜對話收藏</h1><p class="lead">將 ChatGPT 公開分享連結，或官方備份中指定的對話，收藏成可編輯的 Word。</p></header>
-<section class="service-notice" aria-labelledby="service-title">
-<h2 id="service-title">轉換服務</h2><p id="service-status" role="status" aria-live="polite">轉換服務狀態將依實際回應顯示；即使無法連線，仍可在本機搜尋備份、下載原始 JSON。</p>
-<p class="note">轉換服務已啟用；分享連結轉 Word 已有實際成功案例。官方備份及超長對話仍須逐項驗收；若遇到連線或格式問題，請查看錯誤說明。</p>
-<details id="service-settings"><summary>開發與測試設定</summary><div class="details-body">
-<label for="api-base">轉換服務網址（開發／測試）</label><input id="api-base" type="url" placeholder="http://localhost:8000" autocomplete="off" spellcheck="false" aria-describedby="api-help">
-<p id="api-help" class="note">僅填入你信任的本機或核准測試服務。私人內容會送往此網址。只接受 HTTPS，或本機 localhost 的 HTTP。設定只保留在本分頁，不會自動測試連線。</p>
-<p class="note">預設使用 https://chatkeep.onrender.com，一般使用者無須設定網址；填入其他網址只影響本分頁，不代表該服務已通過驗證。</p>
-</div></details>
-</section>
-<div class="mode-tabs" role="tablist" aria-label="選擇對話來源">
-<button id="tab-share" role="tab" aria-selected="true" aria-controls="mode-share" type="button">A｜分享連結轉 Word</button>
-<button id="tab-backup" role="tab" aria-selected="false" aria-controls="mode-backup" tabindex="-1" type="button">B｜官方備份轉 Word</button>
+<header class="site-header"><p class="eyebrow">CHATKEEP</p><h1>ChatKeep｜對話收藏</h1><p class="lead">將 ChatGPT 分享連結轉成 Word，或從 JSON 備份整理、閱讀與收藏對話。</p></header>
+<!-- Compatibility: conversion logic uses these elements. Keep them out of the public homepage. -->
+<div id="service-internals" hidden aria-hidden="true">
+ <p id="service-status" role="status"></p>
+ <details id="service-settings"><summary>開發設定</summary>
+ <label for="api-base">轉換服務網址</label>
+ <input id="api-base" type="url" autocomplete="off" spellcheck="false">
+ </details>
 </div>
-<section id="mode-share" role="tabpanel" aria-labelledby="tab-share">
+<div class="mode-tabs" role="tablist" aria-label="選擇對話來源">
+<button id="tab-share" role="tab" aria-selected="false" aria-controls="mode-share" tabindex="-1" type="button">分享連結轉 Word</button>
+<button id="tab-backup" role="tab" aria-selected="true" aria-controls="mode-backup" type="button">JSON 檔轉 Word／HTML</button>
+</div>
+<section id="mode-share" role="tabpanel" aria-labelledby="tab-share" hidden>
 <div class="panel"><h2 id="share-title">貼上公開分享連結</h2><ol class="steps"><li>貼上連結</li><li>開始轉換</li><li>查看報告並下載</li></ol>
-<p>僅適用於 ChatGPT 的<strong>公開分享連結</strong>。私人對話不能直接由網址擷取，請改用「官方備份」模式。</p>
+<p>僅適用於 ChatGPT 的<strong>公開分享連結</strong>。私人對話不能直接由網址擷取，請改用「JSON 檔轉 Word／HTML」模式。</p>
 <form id="share-form" novalidate><label for="share-url">ChatGPT 公開分享網址</label><input id="share-url" type="url" placeholder="https://chatgpt.com/share/…" autocomplete="off" spellcheck="false" aria-describedby="share-help share-error"><p id="share-help" class="note">格式範例：<span class="break">https://chatgpt.com/share/00000000-0000-0000-0000-000000000000</span></p><p id="share-error" class="error" role="alert"></p><button id="convert-share" type="submit">開始轉換分享連結</button></form>
-<p class="note">公開頁由 Render 讀取並轉換。網路連線或服務喚醒可能需要等待；超長對話可能分成多卷 Word，以 ZIP 下載。</p><p class="note"><a href="https://chatkeep.onrender.com/" target="_blank" rel="noopener noreferrer">開啟既有 v1.0.0 分享連結服務（另開視窗）</a></p>
+<p class="note">轉換可能需要一些時間；超長對話可能分卷下載。遇到問題時會直接顯示原因。</p>
 </div></section>
-<section id="mode-backup" role="tabpanel" aria-labelledby="tab-backup" hidden>
-<div class="panel"><h2 id="backup-title">從官方備份找出想收藏的對話</h2><ol class="steps"><li>選擇備份並建立索引</li><li>搜尋、勾選對話</li><li>轉換、查看報告並下載</li></ol>
+<section id="mode-backup" role="tabpanel" aria-labelledby="tab-backup">
+<div class="panel"><h2 id="backup-title">從 JSON 檔案找出想收藏的對話</h2><ol class="steps"><li>選擇備份並建立索引</li><li>搜尋、勾選對話</li><li>轉換、查看報告並下載</li></ol>
 <p><strong>整份備份只在你的瀏覽器本機解析。</strong>只有按下「轉換選取對話為 Word」後，明確選取對話的轉換所需資料才會傳送到 Render；未選取的對話不會傳送。</p>
 <details id="privacy-details"><summary>了解資料傳送與隱私範圍</summary><div class="details-body"><ul>
 <li>小型對話可能傳送完整的單一已選官方 JSON，其中可能包含 metadata（附加資料）與非當前分支資料。</li>
@@ -39,7 +38,7 @@
 <li>Render 轉換時會暫時在記憶體處理選取內容；本程式不永久儲存對話本文，也不將私人內容寫入一般日誌。</li>
 <li>原始 JSON 下載只在本機擷取，不會因此送出對話。它保留原始結構與可能的其他分支，<strong>不是 Word</strong>，請妥善保存。</li>
 </ul><p class="note">這些說明是目前程式的資料處理範圍，不是對瀏覽器、網路或服務平台的絕對隱私保證。</p></div></details></div>
-<section class="panel" aria-labelledby="files-title"><h2 id="files-title">1．選擇官方備份</h2><label for="files">JSON／ZIP 備份（可選多個檔案）</label><input id="files" type="file" accept=".json,.zip,application/json,application/zip" multiple aria-describedby="files-help"><p id="files-help" class="note">例如 conversations-000.json、conversations-001.json 或官方匯出 ZIP。數百 MB 備份建議使用電腦的一般瀏覽模式；手機可能因記憶體或空間不足而停止。</p>
+<section class="panel" aria-labelledby="files-title"><h2 id="files-title">1．選擇 JSON 檔案</h2><label for="files">JSON／ZIP 備份（可選多個檔案）</label><input id="files" type="file" accept=".json,.zip,application/json,application/zip" multiple aria-describedby="files-help"><p id="files-help" class="note">例如 conversations-000.json、conversations-001.json 或官方匯出 ZIP。數百 MB 備份建議使用電腦的一般瀏覽模式；手機可能因記憶體或空間不足而停止。</p>
 <div class="actions"><button id="scan" type="button">建立對話索引</button><button id="cancel" type="button" class="secondary" hidden>取消本機掃描</button><button id="reset" class="secondary" type="button">清除索引與本機暫存</button></div>
 <details><summary>ZIP 本機暫存與支援限制</summary><div class="details-body"><p>備份分塊背景掃描，不會一次解析整包 JSON。ZIP 只解壓對話 JSON 至瀏覽器的網站儲存空間（OPFS），不會因此上傳。清除索引或取消掃描時會刪除暫存；關閉分頁時會嘗試清理，異常關閉可能殘留，請清除此網站的儲存空間。</p><p>無痕模式的 ZIP 暫存可能占用大量記憶體。ZIP64、加密或異常高壓縮比例不支援；遇到限制請在電腦解壓，再分批選取 JSON。</p></div></details>
 <p id="progress" role="status" aria-live="polite" aria-atomic="true"></p></section>
@@ -73,12 +72,12 @@
 <div class="actions"><button id="convert-selected" type="button">轉換選取對話為 Word</button><button id="deselect" type="button" class="quiet">清除全部選取</button></div>
 <details id="raw-download"><summary>另存原始對話 JSON（不是 Word）</summary><div class="details-body"><p>保留已選對話物件的原始 UTF-8 位元組，包含可能的其他分支與非可見記錄。此操作只擷取原始資料，不執行 Word 轉換，也不傳送至 Render。</p><button id="download" type="button" class="secondary">下載選取的原始 JSON</button></div></details><p id="export-status" role="status" aria-live="polite"></p></section>
 </section>
-<section class="panel" id="conversion-panel" aria-labelledby="conversion-title"><h2 id="conversion-title" tabindex="-1">轉換進度與下載</h2><p>每段對話依序處理，通過完整性驗證後才提供下載。大型對話會顯示目前批次；Render 轉換中沒有可用的內部百分比。</p>
+<section class="panel" id="conversion-panel" aria-labelledby="conversion-title" hidden><h2 id="conversion-title" tabindex="-1">Word 轉換進度與下載</h2><p>每段對話依序處理，通過完整性驗證後才提供下載。大型對話會顯示目前批次；Render 轉換中沒有可用的內部百分比。</p>
 <div class="actions"><button id="cancel-conversion" type="button" class="secondary" disabled>取消轉換佇列</button><button id="continue-conversion" type="button" class="secondary" disabled>繼續佇列</button><button id="clear-conversion" type="button" class="quiet">清除全部轉換紀錄與暫存</button></div>
 <p id="local-operation" class="note" role="status" aria-live="polite" hidden></p><p id="queue-summary" class="metrics"></p><p id="conversion-status" role="status" aria-live="polite" aria-atomic="true">尚未開始轉換。</p>
 <div id="conversion-results" role="list" aria-label="對話轉換工作"></div>
 <nav class="pagination" aria-label="轉換佇列分頁" id="queue-pagination" hidden><button id="queue-prev" class="secondary" type="button">上一頁工作</button><span id="queue-page"></span><button id="queue-next" class="secondary" type="button">下一頁工作</button><button id="queue-current" class="quiet" type="button">查看處理中對話</button></nav>
 <details><summary>容量、下載與取消說明</summary><div class="details-body"><p>成果暫存最多 32 MB。容量不足會暫停，請逐段下載，確認瀏覽器已保存後再「清除暫存 Word」，即可繼續下一段。清除暫存 Word 只清除本頁尚保留的 DOCX／ZIP，不影響已下載的檔案，完整性報告仍保留。網站無法偵測檔案是否真的保存至磁碟，也不會自動將全部對話合併下載。</p><p>每段選取來源最多 16 MB、每次上傳 2 MB、最多 16 批／16 卷及 16 MB 最終成果。大型單則訊息可能超限，不能任意裁切。</p><p>取消會停止後續批次與目前連線，清除未完成的轉換資料，已完成成果保留。瀏覽器取消不保證同步 Render 子程序立即停止，仍受既有最長 45 秒期限控制。</p></div></details></section>
-<footer>ChatKeep · 本機搜尋備份，選取後才傳送轉換 · 分享連結已完成正式連線測試；備份功能持續驗收中</footer>
+<footer>ChatKeep · JSON 在瀏覽器本機整理 · 只有啟動 Word 轉換才會傳送必要資料</footer>
 </main><script type="module" src="local-backup/app.mjs"></script>
 </body></html>
