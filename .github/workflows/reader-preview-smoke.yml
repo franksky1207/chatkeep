@@ -32,3 +32,7 @@ jobs:
           curl -fLsS --retry 2 --connect-timeout 10 --max-time 45 -o /tmp/preview.html "$URL"
           grep -q 'ChatKeep｜對話收藏' /tmp/preview.html
           echo "Preview URL: $URL"
+          BRANCH_URL="https://raw.githack.com/franksky1207/chatkeep/feature%2Fv1.2.0-local-html-reader/docs/index.html"
+          curl -fLsS --retry 2 --connect-timeout 10 --max-time 45 -o /tmp/preview-branch.html "$BRANCH_URL"
+          grep -q 'ChatKeep｜對話收藏' /tmp/preview-branch.html
+          echo "Reusable branch preview: $BRANCH_URL"
