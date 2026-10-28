@@ -94,7 +94,8 @@ export function mountReader({extract,isBusy}){
   }
   $('reader-copy-plan').addEventListener('click',async()=>{
     if(!active)return;
-    try{const plan=await ask('copyPlan');copyPlan=plan.chunks;copyIndex=0;
+    try{const first=Number($('reader-copy-first').value),last=Number($('reader-copy-last').value);
+    const plan=await ask('copyPlan',{first,last});copyPlan=plan.chunks;copyIndex=0;
       $('reader-copy-controls').hidden=false;updateCopy();
     }catch(e){$('reader-export-status').textContent='無法準備複製：'+e.message;}
   });
@@ -178,6 +179,8 @@ export function mountReader({extract,isBusy}){
       try{
         const blob=await extract(item);
         const result=await ask('open',{blob});active=result;
+        $('reader-copy-first').value='1';$('reader-copy-last').value=String(result.count);
+        $('reader-copy-first').max=String(result.count);$('reader-copy-last').max=String(result.count);
         const mark=result.summary.nonText?' · 有 '+result.summary.nonText+' 處特殊內容待人工核對':'';
         status('主線正文 '+result.count+' 則 · 約 '+result.words.toLocaleString('zh-TW')+' 字（參考 Word 計數，非官方 Word 精確值）'+mark);
         $('reader-scope').textContent='請注意：畫面每次僅顯示 50 則訊息，捲到底部不等於對話結尾。請使用「最後一頁」確認結尾。原始節點 '+result.summary.rawNodes+'；非主線 '+result.summary.offBranch+'；排除隱藏／系統／工具類 '+result.summary.hidden+'。HTML 僅顯示目前主線的可還原內容。';
