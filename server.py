@@ -128,7 +128,7 @@ class Application:
                     'code': 'HOST_FORBIDDEN', 'message': '主機不在允許清單。'}}, ensure_ascii=False).encode())
             return response('403 Forbidden', '主機不在允許清單。')
         method, path = env.get('REQUEST_METHOD'), env.get('PATH_INFO')
-        if path in ('/api/convert-json', '/api/convert-v2', '/api/convert-chunk-v1'):
+        if path in ('/api/convert-json', '/api/convert-v2', '/api/convert-chunk-v1', '/api/share-reader-v1'):
             from api_origin import cors_headers, preflight_denial, preflight_diagnostic
             api_headers = HEADERS + cors_headers(env)
             if method == 'OPTIONS':
