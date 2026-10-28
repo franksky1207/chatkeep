@@ -67,7 +67,11 @@ chatkeep_preflight_denied status=403 code=ORIGIN_FORBIDDEN
 
 ## GitHub／部署完成紀錄
 
-修復分支 `fix/cors-preflight-diagnostics`；程式提交 `8beb3c421d9ad8e2e93574f0710f3f0ce32ab7c8`；[PR #4](https://github.com/franksky1207/chatkeep/pull/4)。必要 CI：[40644717335](https://github.com/franksky1207/chatkeep/actions/runs/40644717335) completed/success，包含真正 Chromium／WebKit 與全部必要回歸。後續報告提交僅新增 Markdown，不改變已通過程式；合併後狀態及 SHA 於完成紀錄補記。
+修復分支 `fix/cors-preflight-diagnostics`；程式提交 `8beb3c421d9ad8e2e93574f0710f3f0ce32ab7c8`；[PR #4](https://github.com/franksky1207/chatkeep/pull/4)。必要 CI：[40644717335](https://github.com/franksky1207/chatkeep/actions/runs/40644717335) completed/success，包含真正 Chromium／WebKit 與全部必要回歸。報告提交 `b0b9d5acc704e83e52f011de302d0e944ff19bac` 僅新增 Markdown，沒有更改已通過程式。
+
+PR #4 已於 `2026-10-28T06:40:46Z` 合併，GitHub 再讀確認 merged=true；main 合併 SHA 為 `dd53b2047c74d08452d6e7df959b0bfc9a1f1152`。合併後必要 CI：[40645319123](https://github.com/franksky1207/chatkeep/actions/runs/40645319123) completed/success，全部必要步驟通過。合併後 [Pages build and deployment 40645318494](https://github.com/franksky1207/chatkeep/actions/runs/40645318494) completed/success，包含更新後的提示；本環境未直接驗證正式頁面載入。
+
+本完成紀錄更新為純文件提交，交付時最新 main SHA 以本報告的 GitHub 提交及最終回報為準，不更改已驗證執行程式。沒有 force push 或刪除回歸測試。
 
 本批沒有 Render 操作權限，不宣稱已部署。需使用者在 GitHub 完成後：**Render → chatkeep → Manual Deploy → Deploy latest commit**，核對最終 main SHA。可回復基準為修補前 main `fdeb7cc2e38fb0e2db1cae690b0db850f51e9e16`；這是 GitHub 基準，並非已核實的正式 Render 部署 SHA。部署前請保留控制台目前的成功部署 SHA／事件供回復。
 
