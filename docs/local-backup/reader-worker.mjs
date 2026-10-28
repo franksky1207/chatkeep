@@ -22,6 +22,13 @@ self.onmessage=async({data})=>{
       if(!active)throw Error('請先開啟對話');
       const chunk=copyChunks?.[data.index];if(!chunk)throw Error('複製批次不存在');
       postMessage({type:'copyChunk',request,index:data.index,start:chunk.start,count:chunk.messages.length,payload:richClipboard(chunk.messages)});
+    }else if(type==='htmlSingle'){
+      if(!active)throw Error('請先開啟對話');
+      const totalChars=active.messages.reduce((n,m)=>n+m.text.length,0);
+      if(totalChars>60_000_000)throw Error('單段正文超過安全單檔界線，請改用分卷 HTML');
+      const html=htmlDocument(active.title,active.messages,0,active.messages.length);
+      if(html.length>100_000_000)throw Error('單檔 HTML 超過安全記憶體界線，請改用分卷 HTML');
+      postMessage({type:'htmlSingle',request,html,count:active.messages.length});
     }else if(type==='htmlPlan'){
       if(!active)throw Error('請先開啟對話');
       const volumes=splitHtmlVolumes(active.messages);
