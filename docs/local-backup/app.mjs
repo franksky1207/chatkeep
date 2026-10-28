@@ -1,3 +1,4 @@
+import {mountReader} from './reader-ui.mjs';
 import {safeFilename} from './conversion.mjs';
 import {mountModes} from './site-ui.mjs';
 import {mountConversion} from './conversion-ui.mjs';
@@ -7,12 +8,18 @@ mountModes();
 const PAGE_SIZE=50,SELECTED_PAGE_SIZE=25;let resultPage=0,selectedPage=0,lastRows=[];
 let index=[],selected=new Set(),worker=null,busy=false,directory=null,generation=0,request=0;
 const pending=new Map(),urls=new Set(); let failures=[],completed=0; let cleaning=false,conversionLocked=false;
+const sizeMB=item=>(item.end-item.start)/1_000_000;
+function wordRisk(item){
+ const n=item.end-item.start;
+ return n>=16_000_000?'超過 Word 來源上限，建議 HTML':n>=5_000_000?'Word 可能逾時，建議 HTML':'可嘗試 Word';
+}
 function status(s,fail=false){$('progress').textContent=s;$('progress').className=fail?'error':'';}
 function date(value){const d=new Date(value*1000);return value!=null&&!Number.isNaN(d.valueOf())?d.toLocaleDateString('zh-TW'):'日期未提供';}
 function options(){return {query:$('search').value,series:$('series').value,first:$('first').value,last:$('last').value,dateField:$('date-field').value,from:$('from').value,to:$('to').value};}
 function matches(){return filterRows(index,options());}
 function summary(rows){
   const o=options(),r=report(rows,o),all=report(index,{});
+  const picked=index.filter(x=>selected.has(x.key)),oversize=picked.filter(x=>x.end-x.start>=16_000_000).length,risky=picked.filter(x=>x.end-x.start>=5_000_000&&x.end-x.start<16_000_000).length;
   const problems=[];
   if(o.from&&o.to&&o.from>o.to)problems.push('日期起點晚於終點');
   if(o.series&&o.first&&o.last&&Number(o.first)>Number(o.last))problems.push('編號起點大於終點');
@@ -23,7 +30,7 @@ function summary(rows){
   $('select-visible').textContent='勾選目前搜尋結果（共 '+rows.length+' 段，包含所有分頁）';
   $('select-visible').disabled=busy||!rows.length;
   $('report').textContent=(problems.length?'提醒：'+problems.join('；')+'\n':'')+
-    '缺號／重號僅根據成功解析且符合目前篩選的來源，不代表整份備份完整。'+
+    '已選對話 Word 風險：超過來源上限 '+oversize+' 段，可能逾時 '+risky+' 段；均可考慮本機 HTML。\n缺號／重號僅根據成功解析且符合目前篩選的來源，不代表整份備份完整。'+
     '\n原始 mapping 節點欄位合計：'+r.nodes+'；節點數不等於可見訊息數。可匯出訊息數尚未驗證，轉換後請查看完整性報告。';
 
 }
@@ -75,8 +82,8 @@ function display(){
     const c=document.createElement('input');c.type='checkbox';c.checked=selected.has(item.key);c.disabled=busy;c.id='entry-'+item.key;
     c.addEventListener('change',()=>{if(busy)return;c.checked?selected.add(item.key):selected.delete(item.key);row.classList.toggle('selected',c.checked);controls();summary(lastRows);});
     const label=document.createElement('label');label.htmlFor=c.id;const title=document.createElement('span');title.className='entry-title';title.textContent=item.title;label.append(title);
-    const sub=document.createElement('span');sub.className='sub';sub.textContent=date(item.update_time)+' · '+item.label;
-    label.append(sub);const view=document.createElement('button');view.type='button';view.className='secondary';view.textContent='預覽';view.setAttribute('aria-label','預覽：'+item.title);view.disabled=busy;view.addEventListener('click',()=>{preview(item);$('preview').focus();});row.append(c,label,view);frag.append(row);
+    const sub=document.createElement('span');sub.className='sub';sub.textContent=date(item.update_time)+' · '+item.label+' · '+sizeMB(item).toFixed(2)+' MB · '+wordRisk(item);
+    label.append(sub);const view=document.createElement('button');view.type='button';view.className='secondary';view.textContent='預覽';view.setAttribute('aria-label','預覽：'+item.title);view.disabled=busy;view.addEventListener('click',()=>{preview(item);$('preview').focus();});const read=document.createElement('button');read.type='button';read.className='secondary';read.textContent='閱讀對話';read.disabled=busy;read.addEventListener('click',()=>void reader.open(item));row.append(c,label,view,read);frag.append(row);
   }
   if(!rows.length){const p=document.createElement('p');p.className='empty';p.textContent='沒有符合條件的對話。';frag.append(p);}
   $('results').replaceChildren(frag);controls();summary(rows);
@@ -84,6 +91,7 @@ function display(){
   $('results-prev').disabled=busy||resultPage===0;$('results-next').disabled=busy||(resultPage+1)*PAGE_SIZE>=rows.length;
 }
 async function release(){
+  reader.close();
   busy=true;
   cleaning=true;generation++;const oldWorker=worker;worker=null;
   if(oldWorker){
@@ -187,6 +195,7 @@ $('download').addEventListener('click',async()=>{
 // A session directory is cleaned on explicit cancel/reset. Browsers may retain it after a crash;
 // the UI documents site-storage cleanup instead of deleting another tab's files heuristically.
 window.addEventListener('pagehide',()=>{worker?.terminate();for(const url of urls)URL.revokeObjectURL(url);if(directory&&navigator.storage?.getDirectory)void navigator.storage.getDirectory().then(root=>root.removeEntry(directory,{recursive:true})).catch(()=>{});});
+const reader=mountReader({extract,isBusy:()=>busy||cleaning||conversionLocked});
 const conversion=mountConversion({
  getSelected:()=>index.filter(x=>selected.has(x.key)),
  extract:(item,signal)=>{if(item.end-item.start>16_000_000){const e=Error('SELECTED_SOURCE_LIMIT');e.code=e.message;throw e;}return extract(item,signal);},
