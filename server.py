@@ -120,23 +120,25 @@ class Application:
         host = env.get('HTTP_HOST', '')
         if not valid_host(host):
             if env.get('PATH_INFO') in ('/api/convert-json', '/api/convert-v2', '/api/convert-chunk-v1'):
+                if env.get('REQUEST_METHOD') == 'OPTIONS':
+                    from api_origin import preflight_diagnostic
+                    start_response('403 Forbidden', HEADERS + preflight_diagnostic('HOST_FORBIDDEN') + [('Content-Length', '0')])
+                    return [b'']
                 return response('403 Forbidden', json.dumps({'ok': False, 'error': {
                     'code': 'HOST_FORBIDDEN', 'message': '主機不在允許清單。'}}, ensure_ascii=False).encode())
             return response('403 Forbidden', '主機不在允許清單。')
         method, path = env.get('REQUEST_METHOD'), env.get('PATH_INFO')
         if path in ('/api/convert-json', '/api/convert-v2', '/api/convert-chunk-v1'):
-            from api_origin import allowed_origin, cors_headers
+            from api_origin import cors_headers, preflight_denial, preflight_diagnostic
             api_headers = HEADERS + cors_headers(env)
             if method == 'OPTIONS':
-                requested = {x.strip().lower() for x in env.get('HTTP_ACCESS_CONTROL_REQUEST_HEADERS', '').split(',') if x.strip()}
-                accepted = (allowed_origin(env) and bool(env.get('HTTP_ORIGIN')) and
-                            env.get('HTTP_ACCESS_CONTROL_REQUEST_METHOD') == 'POST' and
-                            requested <= {'content-type'} and not env.get('HTTP_COOKIE') and
-                            not env.get('HTTP_AUTHORIZATION'))
+                denial = preflight_denial(env)
+                accepted = denial is None
                 code = '204 No Content' if accepted else '403 Forbidden'
                 extra = [('Access-Control-Allow-Methods', 'POST'),
                          ('Access-Control-Allow-Headers', 'Content-Type'),
-                         ('Access-Control-Max-Age', '600')] if accepted else []
+                         ('Access-Control-Max-Age', '600'),
+                         ('X-ChatKeep-Preflight', 'ACCEPTED')] if accepted else preflight_diagnostic(denial)
                 start_response(code, api_headers + extra + [('Content-Length', '0')])
                 return [b'']
             from json_api import handle
