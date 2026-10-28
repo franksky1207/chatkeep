@@ -1,0 +1,30 @@
+name: ChatKeep v1.2 reader lightweight checks
+on:
+  push:
+    branches: ['feature/v1.2.0-local-html-reader']
+    paths:
+      - 'docs/local-backup/reader-*.mjs'
+      - 'docs/local-backup/app.mjs'
+      - 'docs/index.html'
+      - 'tests/reader_core.test.mjs'
+      - '.github/workflows/reader-v12-checks.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  reader:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax and reader unit tests
+        run: |
+          node --check docs/local-backup/app.mjs
+          node --check docs/local-backup/reader-core.mjs
+          node --check docs/local-backup/reader-worker.mjs
+          node --check docs/local-backup/reader-ui.mjs
+          node --test tests/reader_core.test.mjs
+          git diff --check
