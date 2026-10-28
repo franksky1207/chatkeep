@@ -51,6 +51,7 @@ function controls(){
   for(const id of ['scan','reset','files','search','select-visible','deselect','series','first','last','date-field','from','to','convert-share','api-base','share-url','reset-filters','results-prev','results-next','selected-prev','selected-next'])$(id).disabled=busy;
   $('cancel').hidden=!busy||conversionLocked; $('cancel').disabled=cleaning; $('download').disabled=busy||!selected.size;
   $('convert-selected').disabled=busy||!selected.size;
+  for(const id of ['shortcut-html','shortcut-word','shortcut-clear'])$(id).disabled=busy||!selected.size;
   $('download-html-selected').disabled=busy||!selected.size;
   $('results-prev').disabled=busy||resultPage===0;$('results-next').disabled=busy||(resultPage+1)*PAGE_SIZE>=lastRows.length;
   $('count').textContent='已選 '+selected.size+' 段';
@@ -197,6 +198,7 @@ $('download').addEventListener('click',async()=>{
 // A session directory is cleaned on explicit cancel/reset. Browsers may retain it after a crash;
 // the UI documents site-storage cleanup instead of deleting another tab's files heuristically.
 window.addEventListener('pagehide',()=>{worker?.terminate();for(const url of urls)URL.revokeObjectURL(url);if(directory&&navigator.storage?.getDirectory)void navigator.storage.getDirectory().then(root=>root.removeEntry(directory,{recursive:true})).catch(()=>{});});
+for(const [shortcut,target] of [['shortcut-html','download-html-selected'],['shortcut-word','convert-selected'],['shortcut-clear','deselect']])$(shortcut).addEventListener('click',()=>$(target).click());
 const reader=mountReader({extract,isBusy:()=>busy||cleaning||conversionLocked});
 $('download-html-selected').addEventListener('click',async()=>{
  if(busy||!selected.size)return;const items=index.filter(x=>selected.has(x.key));busy=true;controls();
