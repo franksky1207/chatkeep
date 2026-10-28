@@ -27,7 +27,7 @@
 <section id="mode-share" role="tabpanel" aria-labelledby="tab-share" hidden>
 <div class="panel"><h2 id="share-title">貼上公開分享連結</h2><ol class="steps"><li>貼上連結</li><li>開始轉換</li><li>查看報告並下載</li></ol>
 <p>僅適用於 ChatGPT 的<strong>公開分享連結</strong>。私人對話不能直接由網址擷取，請改用「JSON 檔轉 Word／HTML」模式。</p>
-<form id="share-form" novalidate><label for="share-url">ChatGPT 公開分享網址</label><input id="share-url" type="url" placeholder="https://chatgpt.com/share/…" autocomplete="off" spellcheck="false" aria-describedby="share-help share-error"><p id="share-help" class="note">格式範例：<span class="break">https://chatgpt.com/share/00000000-0000-0000-0000-000000000000</span></p><p id="share-error" class="error" role="alert"></p><button id="convert-share" type="submit">開始轉換分享連結</button></form>
+<form id="share-form" novalidate><label for="share-url">ChatGPT 公開分享網址</label><input id="share-url" type="url" placeholder="https://chatgpt.com/share/…" autocomplete="off" spellcheck="false" aria-describedby="share-help share-error"><p id="share-help" class="note">格式範例：<span class="break">https://chatgpt.com/share/00000000-0000-0000-0000-000000000000</span></p><p id="share-error" class="error" role="alert"></p><button id="convert-share" type="submit">轉換 Word</button><button id="read-share" type="button" class="secondary">開啟 HTML 閱讀版</button><p id="share-read-status" role="status" aria-live="polite"></p></form>
 <p class="note">轉換可能需要一些時間；超長對話可能分卷下載。遇到問題時會直接顯示原因。</p>
 </div></section>
 <section id="mode-backup" role="tabpanel" aria-labelledby="tab-backup">
