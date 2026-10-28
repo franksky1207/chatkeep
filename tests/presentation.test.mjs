@@ -25,7 +25,7 @@ test('retry status observers leave sequential pacing and retry admission intact'
  await sendPrepared({mode:'chunks',chunks:[{part_index:1}]},{collector,wait:async n=>waits.push(n),onProgress:e=>events.push(e),send:async()=>++calls===1?{status:429,retryAfter:'60'}:{status:200,value:{}}});
  assert.equal(calls,2);assert(waits.includes(60000));assert(events.some(e=>e.phase==='retry'&&e.index===1&&e.seconds===60));
 });
-test('release defaults stay disabled; error copy is readable and filenames reject control/bidi/reserved names',()=>{
- assert.equal(DEFAULT_API_BASE,'');assert(explain('NETWORK_OR_CORS').includes('來源白名單'));assert(explain('API_UNAVAILABLE').includes('尚未部署'));assert(!explain('API_NOT_CONFIGURED').includes('/api/'));
+test('release defaults use HTTPS Render; error copy is readable and filenames reject control/bidi/reserved names',()=>{
+ assert.equal(DEFAULT_API_BASE,'https://chatkeep.onrender.com');assert(explain('NETWORK_OR_CORS').includes('來源白名單'));assert(explain('API_UNAVAILABLE').includes('尚未部署'));assert(!explain('API_NOT_CONFIGURED').includes('/api/'));
  assert.equal(safeFilename('CON','json'),'_CON.json');assert(!safeFilename('a\u202eb/😀','docx').includes('\u202e'));assert(safeFilename('../x','zip').endsWith('.zip'));
 });

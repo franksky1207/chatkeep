@@ -99,6 +99,11 @@ class UISecurityTests(unittest.TestCase):
         page.locator('#tab-backup').focus();page.keyboard.press('Home');expect(page.locator('#tab-share')).to_be_focused()
         page.locator('#share-url').fill('https://chatgpt.com/c/private');page.keyboard.press('Enter')
         expect(page.locator('#share-error')).to_contain_text('私人對話網址不適用');expect(page.locator('#share-url')).to_have_attribute('aria-invalid','true')
+        # Verify the shipped HTTPS default without contacting production; explicitly
+        # clear it to exercise the still-supported unconfigured developer state.
+        expect(page.locator('#api-base')).to_have_value('https://chatkeep.onrender.com')
+        page.locator('#service-settings').evaluate('(el)=>el.open=true')
+        page.locator('#api-base').fill('')
         page.locator('#share-url').fill('https://chatgpt.com/share/00000000-0000-0000-0000-000000000000');page.keyboard.press('Enter')
         expect(page.locator('#conversion-status')).to_contain_text('尚未設定');expect(page.locator('#service-settings')).to_have_attribute('open','')
         page.locator('#api-base').fill('http://public.example');expect(page.locator('#service-status')).to_contain_text('網址無效')

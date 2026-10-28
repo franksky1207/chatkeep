@@ -1,4 +1,4 @@
-/* Auditable release configuration. Enable only after batch 8 acceptance.
+/* Auditable release configuration. Publish only after release acceptance.
  * No tokens or private content. Manual developer override stays in tab memory.
  */
-export const DEFAULT_API_BASE = '';
+export const DEFAULT_API_BASE = 'https://chatkeep.onrender.com';
