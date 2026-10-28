@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from html.parser import HTMLParser
 from html import escape
 import re
+from bisect import bisect_right
 
 KNOWN = {"box", "row", "col", "card", "text", "caption", "bold", "italic", "button", "badge", "label", "title", "checkbox", "radio", "list", "list-item"}
 VOID = {"asyncimage", "icon", "divider", "spacer"}
@@ -40,6 +41,26 @@ def chunks(source):
     if plain:
         parts.append(("text", "".join(plain)))
     return parts
+
+def inline_spans(source):
+    """Linear matching of equal backtick runs; no catastrophic backtracking."""
+    offset = 0
+    for line in source.splitlines(keepends=True):
+        runs = list(re.finditer(r'`+', line))
+        following, next_run = {}, {}
+        for i in range(len(runs)-1, -1, -1):
+            width = runs[i].end()-runs[i].start()
+            if width in following: next_run[i] = following[width]
+            following[width] = i
+        i = 0
+        while i < len(runs):
+            if i in next_run:
+                j = next_run[i]
+                yield offset+runs[i].start(), offset+runs[j].end()
+                i = j+1
+            else: i += 1
+        offset += len(line)
+
 
 class UI(HTMLParser):
     def __init__(self):
@@ -105,10 +126,10 @@ def parse(source):
             if dynamic:
                 warnings.append("動態介面僅還原可取得的靜態內容，不執行事件或版面運算；動態文字欄位保留原文。")
             cursor = 0
-            for match in re.finditer(r"(`+)([^\n]*?)\1(?!`)", part):
-                parser.feed(part[cursor:match.start()])
-                parser.raw(match.group())  # Inline code cannot become UI markup.
-                cursor = match.end()
+            for left, right in inline_spans(part):
+                parser.feed(part[cursor:left])
+                parser.raw(part[left:right])  # Inline code cannot become UI markup.
+                cursor = right
             parser.feed(part[cursor:])
             parser.close()
             if len(parser.stack)!=1:
@@ -139,9 +160,11 @@ def static_attributes(source):
     """
     output, cursor, dynamic = [], 0, False
     start = re.compile(r'<(box|row|col|card|text|caption|bold|italic|button|badge|label|title|checkbox|radio|list|list-item|asyncimage|icon|divider|spacer)\b',re.I)
-    inline = [(m.start(), m.end()) for m in re.finditer(r"(`+)([^\n]*?)\1(?!`)", source)]
+    inline = list(inline_spans(source))
+    starts = [left for left, right in inline]
     for match in start.finditer(source):
-        if match.start() < cursor or any(left <= match.start() < right for left, right in inline): continue
+        span = bisect_right(starts, match.start())-1
+        if match.start() < cursor or (span >= 0 and match.start() < inline[span][1]): continue
         output.append(source[cursor:match.end()])
         i, quote = match.end(), None
         while i < len(source):

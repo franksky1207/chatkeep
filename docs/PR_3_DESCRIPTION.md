@@ -6,7 +6,7 @@ ChatKeep v1.1.0 開發分支：GitHub Pages 在瀏覽器本機索引、搜尋及
 - 搜尋支援標題、UTC 日期、系列編號範圍交集；搜尋結果全選、索引預覽、缺號／重號及來源報告。mapping 節點數不冒充可見或可匯出訊息數。
 - 第 2 批合成 JSON／ZIP、Chromium 及 440 MiB 測試證據見 `docs/BATCH_2_LOCAL_BACKUP.md`；第 3 批 3 個 Node 篩選測試已通過，實機驗收延至第 8 批，見 `docs/BATCH_3_SEARCH_REPORT.md`。
 
-## 第 4 批：JSON → Word API
+## 第 4 批：JSON → Word API（當批基準；最新容量規則見第 5 批）
 
 - `POST /api/convert-json`，UTF-8 `application/json`，本文直接為一個已選取的官方對話物件；拒絕整包陣列、ZIP 及 conversations 包裝。
 - 以 current_node／parent 決定唯一有效分支，驗證循環、父子關係、重複訊息與內容格式；沿用 `chatkeep.normalize()` 及 `word_export.build_docx(rich=True)`。沒有第二套 Word 產生器。
@@ -17,6 +17,16 @@ ChatKeep v1.1.0 開發分支：GitHub Pages 在瀏覽器本機索引、搜尋及
 
 驗證：66 個必要單元／整合測試通過（第 4 批專屬 15 個），含既有分享連結與 Word 排版回歸；本機 Gunicorn JSON 成功／錯誤、可重新開啟 DOCX、10 秒停滯上傳中止／名額重用及日誌隱私通過；既有非 live production smoke test 通過。API 範例、錯誤碼、完整性規則、限制及測試命令見 `docs/BATCH_4_JSON_API.md`。
 
-後續界線：大型對話／分卷是第 5 批；Pages 連接 Render／跨站 CORS／前端取消是第 6 批，尚未開發。真實官方備份、手機／桌機、Microsoft Word 與 Render Free 實機驗收統一留第 8 批。384 MiB 是子程序位址空間限制，不是整個服務 RSS／免費 Render 壓測保證；同步轉換在客戶端斷線後最遲依 45 秒期限中止。
+## 第 5 批：單一 Word 優先／長對話分卷
+
+- 移除 100,000 換行與 `<` 粗略拒絕；用實際 Word XML 元素／bytes／表格 cells 判斷單卷容量。兩種來源共用 `conversation_export`／`WordVolume`，能容納就保留單 DOCX。
+- 只有下一則完整訊息使單卷超限才換卷；撤回該則的 XML／hyperlink，再於新卷重試。單則本身超限明確失敗；逐卷產生／驗證／封裝 ZIP，不保存全部 Word graph，也不建立私人暫存檔。
+- 新版分享 `POST /api/convert-v2` 與原 `/api/convert-json` 回傳版本 2 envelope：artifact_type、MIME、安全檔名、Base64 document、共用完整性報告。保留舊 `/api/convert` NDJSON／DOCX 行為，需 ZIP 時明確回 MULTIPART_REQUIRED，沒有把 ZIP 冒充 DOCX 送給舊前端。
+- 依序列化 Word bookmarks、CRC、每卷連續範圍、訊息數與正規化序列 hash 驗證完成；不宣稱已與真實備份／網頁逐字比對。新版不支援的可見內容仍明確失敗。
+- 單卷工作預算 120,000 元素／8 MB 本文 XML／5,000 cells；保留全域 5,000 則／500 萬字元，兩來源共用單則 100 萬字元界線。官方傳輸仍為 2 MB、原始節點仍 5,000；最多 16 卷、整包下載仍 16 MB、回應仍 24 MB。新端點沿用 384 MiB AS、30/31 秒 CPU、45 秒 wall-clock、共享並行／速率限制。
+- 必要測試 85 個通過（第 5 批專屬 19 個）。13 組獨立受限程序合成量測：60 萬字元、5,000 則短訊息、4.8 百萬字元、4,000 個 code blocks 都優先單 DOCX；舊計數 200,000 的 `<` 案例成功單檔；100,000 行與大型表格各為 2 卷，完整性核對完成。較難壓縮多卷案例 RSS 峰值 87.6 MiB。
+- 本機 Gunicorn 實際送 1,416,036 bytes 官方 JSON → 2 卷 ZIP／100 則，約 2.356 秒，程序樹 RSS 基線 44.1 →峰值 125.5 MiB，實際 HTTP envelope 928,387 bytes；並行 429、失敗後重用、DOCX／ZIP／日誌隱私與逾時回收通過。不是 Render Free 實測。
+
+完整 API 契約、容量分類、測試命令／環境／CPU／RSS 數據與未驗證事項見 `docs/BATCH_5_LONG_CONVERSATIONS.md`。Render Free CPU 可能較慢而逾時；新版同步 API 不保證所有斷線立即取消，最遲以 45 秒／資源期限結束。忙碌時提早拒絕大型上傳可能呈現網路錯誤；Pages／跨站 CORS／下載及取消整合留第 6 批，**尚未開始**。真實備份、手機／桌機、Microsoft Word 與正式 Render 驗收統一留第 8 批。
 
 本批沒有修改正式 Render v1.0.0、Render 部署設定、Pages UI 或 Actions，沒有觸發 Actions、合併 main、部署、啟用 Pages 或建立 Release。

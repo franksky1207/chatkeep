@@ -4,6 +4,7 @@ No screenshots; all text is native Word runs or table cell content.
 """
 import re
 import textwrap
+from export_limits import guard_run, observe
 from docx.shared import Pt, RGBColor
 from docx.opc.constants import RELATIONSHIP_TYPE as RT
 from urllib.parse import urlsplit
@@ -23,6 +24,7 @@ INLINE = re.compile(r"(?<!`)(`)([^`\n]+)\1(?!`)|\*\*([^*\n]+)\*\*|(?<!\*)\*([^*\
 
 
 def inline(paragraph, value):
+    guard_run(value)
     cursor = 0
     for match in INLINE.finditer(value):
         if match.start() > cursor: paragraph.add_run(value[cursor:match.start()])
@@ -70,6 +72,7 @@ def celltext(cell, value):
         p.paragraph_format.space_after = Pt(1)
 
 def box(document, text, fill="EFF4F2"):
+    observe(elements=6, cells=1)
     table = document.add_table(rows=1, cols=1)
     cell = table.cell(0, 0)
     shade(cell, fill)
@@ -77,6 +80,7 @@ def box(document, text, fill="EFF4F2"):
     return table
 
 def bubble(document, speaker, content, timestamp=""):
+    observe(elements=12, cells=2)
     table = document.add_table(rows=1, cols=2)
     mine = speaker in ("我", "玩家", "使用者", "You")
     active = table.cell(0, 1 if mine else 0)
@@ -114,12 +118,13 @@ def markdown(document, value):
             matrix = [split_cells(row) for row in rows]
             width = max(map(len, matrix))
             if width <= CELL_LIMIT:
+                observe(elements=6 * len(matrix) * width, cells=len(matrix) * width)
                 table = document.add_table(rows=len(matrix), cols=width)
                 table.style = "Table Grid"
-                for r, cols in enumerate(matrix):
-                    for c, val in enumerate(cols):
-                        celltext(table.cell(r,c), val)
-                        if r == 0: shade(table.cell(r,c))
+                for r, (row, cols) in enumerate(zip(table.rows, matrix)):
+                    for cell, val in zip(row.cells, cols):
+                        celltext(cell, val)
+                        if r == 0: shade(cell)
                 table.rows[0]._tr.get_or_add_trPr().append(OxmlElement('w:tblHeader'))
             else:
                 for row in rows: document.add_paragraph(row)
@@ -169,6 +174,7 @@ def render(document, node):
         p.paragraph_format.space_before = Pt(4)
         p.paragraph_format.space_after = Pt(7)
         p.paragraph_format.widow_control = True
+        guard_run(node.text)
         run = p.add_run(node.text)
         run.font.name = "Consolas"
         run.font.size = Pt(9)
@@ -180,20 +186,25 @@ def render(document, node):
     elif kind == "decor":
         value = flatten(node)
         if value:
+            guard_run(value)
             document.add_paragraph(value)
         return
     elif kind in ("box", "card"):
+        observe(elements=6, cells=1)
         table = document.add_table(rows=1, cols=1)
         shade(table.cell(0, 0))
         label = node.attrs.get('label') or node.attrs.get('title')
         if label:
+            guard_run(label)
             table.cell(0, 0).add_paragraph(label)
         render_nodes(table.cell(0, 0), node.children)
         if not node.children and not label and flatten(node):
+            guard_run(flatten(node))
             table.cell(0, 0).add_paragraph(flatten(node))
     elif kind == "row":
         children = [c for c in node.children if flatten(c).strip()]
         if len(children) >= 2 and len(children) <= 4:
+            observe(elements=6 * len(children), cells=len(children))
             table = document.add_table(rows=1, cols=len(children))
             table.style = "Table Grid"
             for i, child in enumerate(children):
@@ -209,6 +220,7 @@ def render(document, node):
         # text. Preserve meaningful line breaks and every non-whitespace character.
         value = '\n'.join(line.rstrip() for line in textwrap.dedent(value).splitlines() if line.strip())
         p = document.add_paragraph()
+        guard_run(value)
         r = p.add_run(value)
         if kind=="caption": r.font.size=Pt(9); r.font.color.rgb=RGBColor(100,110,110)
         if kind=="bold": r.bold=True
@@ -246,6 +258,7 @@ def render_nodes(document, nodes):
         else:
             flush()
             render(document, node)
+            observe()
     flush()
     if hasattr(document, '_tc'):
         initial = document._tc.find(qn('w:p'))

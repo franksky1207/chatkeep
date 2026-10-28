@@ -109,7 +109,7 @@ class NormalizationTests(unittest.TestCase):
             with self.assertRaises(OfficialError): decode(data)
         with self.assertRaises(OfficialError): decode(json.dumps({'x':'\u0000'}).encode())
         with self.assertRaises(OfficialError): decode(b'[' + b'0,' * 100001 + b'0]')
-        c = conversation(); c['mapping']['a']['message']['content']['parts'] = ['x'*100001]
+        c = conversation(); c['mapping']['a']['message']['content']['parts'] = ['x'*1_000_001]
         with self.assertRaises(OfficialError) as caught: normalize_official(body(c))
         self.assertEqual(caught.exception.code, 'TEXT_LIMIT')
         with patch('official_json.MAX_NODES', 3), self.assertRaises(OfficialError): normalize_official(body())
@@ -132,9 +132,9 @@ class ExportTests(unittest.TestCase):
         xml = doc.part.blob.decode()
         self.assertIn('<w:b', xml); self.assertIn('<w:i', xml)
         self.assertNotIn('/', packet['filename'])
-        from word_export import build_docx
-        with patch('official_worker.build_docx', wraps=build_docx) as shared:
-            result(body()); self.assertTrue(shared.call_args.kwargs['rich'])
+        from word_export import WordVolume
+        with patch('conversation_export.WordVolume', wraps=WordVolume) as shared:
+            result(body()); self.assertTrue(shared.called)
 
     def test_malicious_html_no_fetch_or_execution(self):
         c = conversation(); c['title'] = '../CON/\\?'

@@ -15,7 +15,7 @@ MAX_RESPONSE = 24_000_000
 WORKER = Path(__file__).resolve().with_name('official_worker.py')
 
 
-def handle(env, start_response, headers, slots, rates):
+def handle(env, start_response, headers, slots, rates, mode='official'):
     def respond(status, value):
         body = json.dumps(value, ensure_ascii=False, allow_nan=False).encode('utf-8')
         start_response('%d %s' % (status, HTTPStatus(status).phrase), headers + [
@@ -42,8 +42,9 @@ def handle(env, start_response, headers, slots, rates):
     try: size = int(env.get('CONTENT_LENGTH') or 0)
     except (ValueError, TypeError):
         return error(400, 'INVALID_LENGTH', '請求長度無效。')
-    if not 0 < size <= MAX_INPUT:
-        return error(413, 'INPUT_TOO_LARGE', '請提供不超過 2 MB 的單一對話。')
+    limit = 4096 if mode == 'share' else MAX_INPUT
+    if not 0 < size <= limit:
+        return error(413, 'INPUT_TOO_LARGE', '分享連結請求不得超過 4,096 bytes。' if mode == 'share' else '請提供不超過 2 MB 的單一對話。')
     if not rates.admit(env.get('REMOTE_ADDR', 'unknown')):
         return error(429, 'RATE_LIMITED', '請求過於頻繁，請稍後再試。')
     if not slots.acquire(blocking=False):
@@ -75,8 +76,20 @@ def handle(env, start_response, headers, slots, rates):
             return error(408, 'UPLOAD_TIMEOUT', '接收 JSON 逾時。')
         if len(body) != size:
             return error(400, 'INCOMPLETE_BODY', '請求本文不完整。')
+        if mode == 'share':
+            from chatkeep import validate_url, ExtractionError
+            from official_json import decode, OfficialError
+            try:
+                payload = decode(body)
+            except OfficialError as exc:
+                return error(exc.status, exc.code, str(exc))
+            try:
+                if not isinstance(payload, dict) or set(payload) != {'url'}: raise ValueError()
+                validate_url(payload['url'])
+            except (ValueError, TypeError, ExtractionError):
+                return error(400, 'INVALID_URL', '請提供有效公開 ChatGPT 分享連結。')
         # No shell, private command arguments, tempfile or inherited stderr logging.
-        process = subprocess.Popen([sys.executable, str(WORKER)], stdin=subprocess.PIPE,
+        process = subprocess.Popen([sys.executable, str(WORKER), mode], stdin=subprocess.PIPE,
                                    stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
         try:
             output, _ = process.communicate(body, timeout=CONVERSION_TIMEOUT)

@@ -160,8 +160,17 @@ class WordTests(unittest.TestCase):
         # 1,200 messages; >1M Unicode characters, alternating roles.
         texts=[('%04d 中文😀\n<box>完整正文</box>\n'%i)*50 for i in range(1200)]
         model=normalize(fixture([message(str(i),'user' if i%2==0 else 'assistant',t) for i,t in enumerate(texts)]))
-        doc=Document(BytesIO(build_docx(model, rich=False)))
-        bodies=[p.text for i,p in enumerate(doc.paragraphs) if i and doc.paragraphs[i-1].style.name=='Heading 2']
+        from conversation_export import export_conversation
+        from zipfile import ZipFile
+        artifact = export_conversation(model, 'share_link', rich=False)
+        payloads = [artifact['data']]
+        if artifact['artifact_type'] == 'zip':
+            with ZipFile(BytesIO(artifact['data'])) as archive:
+                payloads = [archive.read(name) for name in archive.namelist()]
+        bodies = []
+        for payload in payloads:
+            doc = Document(BytesIO(payload))
+            bodies.extend(p.text for i,p in enumerate(doc.paragraphs) if i and doc.paragraphs[i-1].style.name=='Heading 2')
         self.assertEqual(bodies,texts)
 
     def test_filename_and_invalid_xml(self):

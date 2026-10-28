@@ -7,9 +7,7 @@ from word_export import _check_xml, ExportError
 
 MAX_INPUT = 2_000_000
 MAX_NODES = 5000
-MAX_MESSAGES = 2000
-MAX_TEXT = 1_000_000
-MAX_MESSAGE = 100_000
+from export_limits import MAX_MESSAGES, MAX_TEXT, MAX_MESSAGE, supported_text_content
 
 
 class OfficialError(ValueError):
@@ -134,14 +132,7 @@ def normalize_official(body):
             if visible:
                 # Do not let the permissive share-page adapter silently prefer
                 # content.text over a second, potentially non-text parts payload.
-                parts = content.get('parts')
-                text = content.get('text')
-                supported = (content_type in ('text', 'code')
-                             and not (set(content) - {'content_type', 'parts', 'text', 'language'})
-                             and not ('text' in content and 'parts' in content)
-                             and (isinstance(text, str) or isinstance(parts, list) and all(
-                                 isinstance(p, str) or isinstance(p, dict) and isinstance(p.get('text'), str)
-                                 and p.get('type', 'text') == 'text' and not (set(p) - {'type', 'text'}) for p in parts)))
+                supported = supported_text_content(content)
                 if not supported: fail('UNSUPPORTED_CONTENT', '有效對話含未支援或不明確的內容格式。')
     # Official nodes may omit redundant node.id; the shared parser needs it for reporting.
     adapted = dict(conv, mapping={k: dict(v, id=k) for k, v in mapping.items()})
@@ -155,7 +146,7 @@ def normalize_official(body):
         fail('UNFINISHED_MESSAGE', '有效路徑含尚未完成的訊息。')
     messages = model['messages']
     if len(messages) > MAX_MESSAGES or sum(len(m['text']) for m in messages) > MAX_TEXT or any(len(m['text']) > MAX_MESSAGE for m in messages):
-        fail('TEXT_LIMIT', '超過本端點 2,000 則、100 萬總字元或單則 10 萬字元限制。', 413)
+        fail('TEXT_LIMIT', '超過共用 5,000 則、500 萬總字元或單則 100 萬字元限制。', 413)
     warnings = []
     def warn(code, count, text):
         if count: warnings.append({'code': code, 'count': count, 'message': text})
