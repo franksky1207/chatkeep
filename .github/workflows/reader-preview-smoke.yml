@@ -1,0 +1,38 @@
+name: ChatKeep v1.2 browser preview smoke
+on:
+  push:
+    branches: ['feature/v1.2.0-local-html-reader']
+    paths:
+      - 'docs/**'
+      - 'tests/reader_browser_smoke.mjs'
+      - '.github/workflows/reader-preview-smoke.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  browser-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chromium test dependency
+        run: |
+          npm install --no-save --no-package-lock playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Run browser smoke against local docs
+        run: |
+          python3 -m http.server 8765 --directory docs >/tmp/chatkeep-http.log 2>&1 &
+          node tests/reader_browser_smoke.mjs
+      - name: Verify independent HTML preview
+        run: |
+          URL="https://raw.githack.com/franksky1207/chatkeep/${GITHUB_SHA}/docs/index.html"
+          curl -fLsS --retry 2 --connect-timeout 10 --max-time 45 -o /tmp/preview.html "$URL"
+          grep -q 'ChatKeep｜對話收藏' /tmp/preview.html
+          echo "Preview URL: $URL"
+          BRANCH_URL="https://raw.githack.com/franksky1207/chatkeep/feature%2Fv1.2.0-local-html-reader/docs/index.html"
+          curl -fLsS --retry 2 --connect-timeout 10 --max-time 45 -o /tmp/preview-branch.html "$BRANCH_URL"
+          grep -q 'ChatKeep｜對話收藏' /tmp/preview-branch.html
+          echo "Reusable branch preview: $BRANCH_URL"

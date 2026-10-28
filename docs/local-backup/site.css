@@ -9,3 +9,27 @@ label{display:block;font-weight:650}input:not([type=checkbox]),select{display:bl
 .entry-title,.selected-entry>p,.job-head h3{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;overflow-wrap:anywhere}
 .selected-entry{flex-wrap:wrap}.selected-entry>details{flex-basis:100%;margin-top:0}.selected-entry>p{flex-basis:60%}
 @media(max-width:767px){.job-head h3{flex-basis:100%;margin-bottom:0}.job-head{gap:8px}}
+
+/* v1.2.0 local reader preview */
+#reader-panel{scroll-margin-top:16px}
+.reader-message{border:1px solid #d6e0e8;border-radius:10px;padding:18px;margin:16px 0;background:#fff}
+.reader-message h3{color:#155b73;margin:0 0 12px}.reader-body{overflow-wrap:anywhere;line-height:1.75}
+.reader-body p{white-space:pre-wrap;margin:0 0 10px}
+.reader-body pre{white-space:pre-wrap;overflow-wrap:anywhere;overflow-x:auto;background:#f1f4f7;padding:12px;border-radius:8px}
+.reader-message button{margin-top:12px}
+.reader-hits{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:12px 0;max-height:200px;overflow-y:auto}
+.reader-hits button{font-size:.85rem;text-align:left}
+@media(max-width:600px){.reader-message{padding:12px}.reader-hits button{width:100%}}
+
+.reader-body{line-height:1.45}.reader-body p{margin:0 0 3px}.reader-body h2,.reader-body h3,.reader-body h4{margin:10px 0 5px;line-height:1.35}.reader-message{padding:14px;margin:9px 0}.reader-message h3{margin-bottom:7px}.reader-body table{border-collapse:collapse;max-width:100%;display:block;overflow-x:auto}.reader-body td,.reader-body th{border:1px solid #ccd6df;padding:4px 8px}.reader-body ul,.reader-body ol{margin:4px 0 8px}
+
+/* Reading density is independent from site's form styles */
+#reader-panel .reader-body{line-height:1.35}
+#reader-panel .reader-body p{margin:0 0 1px;white-space:pre-wrap}
+#reader-panel .reader-body p:has(> :only-child){min-height:0}
+#reader-panel .reader-message{padding:10px 14px;margin:6px 0}
+#reader-panel .reader-message>h3{margin:0 0 5px;font-size:0.95rem}
+#reader-panel .reader-body blockquote{margin:3px 0 3px 10px}
+#reader-panel .reader-nav{gap:8px}
+#reader-panel .reader-jump-label{font-size:.88rem;font-weight:400}
+#reader-panel #reader-jump{width:78px;min-height:40px;margin:0;padding:5px 8px}

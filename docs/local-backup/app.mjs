@@ -1,3 +1,6 @@
+import {zipFiles,safeHtmlName} from './reader-export.mjs';
+import {shareURL,apiBase} from './conversion.mjs';
+import {mountReader} from './reader-ui.mjs';
 import {safeFilename} from './conversion.mjs';
 import {mountModes} from './site-ui.mjs';
 import {mountConversion} from './conversion-ui.mjs';
@@ -7,12 +10,18 @@ mountModes();
 const PAGE_SIZE=50,SELECTED_PAGE_SIZE=25;let resultPage=0,selectedPage=0,lastRows=[];
 let index=[],selected=new Set(),worker=null,busy=false,directory=null,generation=0,request=0;
 const pending=new Map(),urls=new Set(); let failures=[],completed=0; let cleaning=false,conversionLocked=false;
+const sizeMB=item=>(item.end-item.start)/1_000_000;
+function wordRisk(item){
+ const n=item.end-item.start;
+ return n>=16_000_000?'超過 Word 來源上限，建議 HTML':n>=5_000_000?'Word 可能逾時，建議 HTML':'可嘗試 Word';
+}
 function status(s,fail=false){$('progress').textContent=s;$('progress').className=fail?'error':'';}
 function date(value){const d=new Date(value*1000);return value!=null&&!Number.isNaN(d.valueOf())?d.toLocaleDateString('zh-TW'):'日期未提供';}
 function options(){return {query:$('search').value,series:$('series').value,first:$('first').value,last:$('last').value,dateField:$('date-field').value,from:$('from').value,to:$('to').value};}
 function matches(){return filterRows(index,options());}
 function summary(rows){
   const o=options(),r=report(rows,o),all=report(index,{});
+  const picked=index.filter(x=>selected.has(x.key)),oversize=picked.filter(x=>x.end-x.start>=16_000_000).length,risky=picked.filter(x=>x.end-x.start>=5_000_000&&x.end-x.start<16_000_000).length;
   const problems=[];
   if(o.from&&o.to&&o.from>o.to)problems.push('日期起點晚於終點');
   if(o.series&&o.first&&o.last&&Number(o.first)>Number(o.last))problems.push('編號起點大於終點');
@@ -23,7 +32,7 @@ function summary(rows){
   $('select-visible').textContent='勾選目前搜尋結果（共 '+rows.length+' 段，包含所有分頁）';
   $('select-visible').disabled=busy||!rows.length;
   $('report').textContent=(problems.length?'提醒：'+problems.join('；')+'\n':'')+
-    '缺號／重號僅根據成功解析且符合目前篩選的來源，不代表整份備份完整。'+
+    '已選對話 Word 風險：超過來源上限 '+oversize+' 段，可能逾時 '+risky+' 段；均可考慮本機 HTML。\n缺號／重號僅根據成功解析且符合目前篩選的來源，不代表整份備份完整。'+
     '\n原始 mapping 節點欄位合計：'+r.nodes+'；節點數不等於可見訊息數。可匯出訊息數尚未驗證，轉換後請查看完整性報告。';
 
 }
@@ -43,6 +52,8 @@ function controls(){
   for(const id of ['scan','reset','files','search','select-visible','deselect','series','first','last','date-field','from','to','convert-share','api-base','share-url','reset-filters','results-prev','results-next','selected-prev','selected-next'])$(id).disabled=busy;
   $('cancel').hidden=!busy||conversionLocked; $('cancel').disabled=cleaning; $('download').disabled=busy||!selected.size;
   $('convert-selected').disabled=busy||!selected.size;
+  for(const id of ['shortcut-html','shortcut-word','shortcut-json','shortcut-clear'])$(id).disabled=busy||!selected.size;
+  $('download-html-selected').disabled=busy||!selected.size;
   $('results-prev').disabled=busy||resultPage===0;$('results-next').disabled=busy||(resultPage+1)*PAGE_SIZE>=lastRows.length;
   $('count').textContent='已選 '+selected.size+' 段';
   renderSelected();
@@ -75,8 +86,8 @@ function display(){
     const c=document.createElement('input');c.type='checkbox';c.checked=selected.has(item.key);c.disabled=busy;c.id='entry-'+item.key;
     c.addEventListener('change',()=>{if(busy)return;c.checked?selected.add(item.key):selected.delete(item.key);row.classList.toggle('selected',c.checked);controls();summary(lastRows);});
     const label=document.createElement('label');label.htmlFor=c.id;const title=document.createElement('span');title.className='entry-title';title.textContent=item.title;label.append(title);
-    const sub=document.createElement('span');sub.className='sub';sub.textContent=date(item.update_time)+' · '+item.label;
-    label.append(sub);const view=document.createElement('button');view.type='button';view.className='secondary';view.textContent='預覽';view.setAttribute('aria-label','預覽：'+item.title);view.disabled=busy;view.addEventListener('click',()=>{preview(item);$('preview').focus();});row.append(c,label,view);frag.append(row);
+    const sub=document.createElement('span');sub.className='sub';sub.textContent=date(item.update_time)+' · '+item.label+' · '+sizeMB(item).toFixed(2)+' MB · '+wordRisk(item);
+    label.append(sub);const view=document.createElement('button');view.type='button';view.className='secondary';view.textContent='預覽';view.setAttribute('aria-label','預覽：'+item.title);view.disabled=busy;view.addEventListener('click',()=>{preview(item);$('preview').focus();});const read=document.createElement('button');read.type='button';read.className='secondary';read.textContent='閱讀對話';read.disabled=busy;read.addEventListener('click',()=>void reader.open(item));row.append(c,label,view,read);frag.append(row);
   }
   if(!rows.length){const p=document.createElement('p');p.className='empty';p.textContent='沒有符合條件的對話。';frag.append(p);}
   $('results').replaceChildren(frag);controls();summary(rows);
@@ -84,6 +95,7 @@ function display(){
   $('results-prev').disabled=busy||resultPage===0;$('results-next').disabled=busy||(resultPage+1)*PAGE_SIZE>=rows.length;
 }
 async function release(){
+  reader.close();
   busy=true;
   cleaning=true;generation++;const oldWorker=worker;worker=null;
   if(oldWorker){
@@ -187,6 +199,83 @@ $('download').addEventListener('click',async()=>{
 // A session directory is cleaned on explicit cancel/reset. Browsers may retain it after a crash;
 // the UI documents site-storage cleanup instead of deleting another tab's files heuristically.
 window.addEventListener('pagehide',()=>{worker?.terminate();for(const url of urls)URL.revokeObjectURL(url);if(directory&&navigator.storage?.getDirectory)void navigator.storage.getDirectory().then(root=>root.removeEntry(directory,{recursive:true})).catch(()=>{});});
+for(const [shortcut,target] of [['shortcut-html','download-html-selected'],['shortcut-word','convert-selected'],['shortcut-json','download'],['shortcut-clear','deselect']])$(shortcut).addEventListener('click',()=>$(target).click());
+const reader=mountReader({extract,isBusy:()=>busy||cleaning||conversionLocked});
+$('download-html-selected').addEventListener('click',async()=>{
+ if(busy||!selected.size)return;const items=index.filter(x=>selected.has(x.key));busy=true;controls();
+ const files=[],used=new Map();let sourceCount=0,estimatedBytes=0;
+ try{
+  if(items.length>120)throw Error('一次最多處理 120 段，請縮小選取範圍');
+  for(const item of items){
+   $('export-status').textContent='正在產生 HTML：'+(++sourceCount)+'／'+items.length+' · '+item.title;
+   const blob=await extract(item);
+   const w=new Worker(new URL('./reader-worker.mjs',import.meta.url),{type:'module'});
+   let seq=0;
+   const ask=payload=>new Promise((resolve,reject)=>{
+     const id=++seq;
+     w.onmessage=({data})=>{if(data.request!==id)return;data.type==='readerError'?reject(Error(data.message)):resolve(data);};
+     w.onerror=()=>reject(Error('HTML 背景解析失敗'));
+     w.postMessage({...payload,request:id});
+   });
+   try{
+    const open=await ask({type:'open',blob});
+    if(items.length===1){
+      try{
+        const full=await ask({type:'htmlSingle'});
+        if(full.count!==open.count)throw Error('HTML 單檔訊息數驗證失敗');
+        if(full.html.length*3>250_000_000)throw Error('單檔 HTML 超過安全記憶體界線');
+        files.push({name:safeHtmlName(item.title)+'.html',content:full.html});
+        continue;
+      }catch(singleError){
+        if(!/安全.*界線|超過安全/.test(singleError.message))throw singleError;
+        $('export-status').textContent='單檔超過安全界線，改以分卷 ZIP 保留完整內容。';
+      }
+    }
+    const plan=await ask({type:'htmlPlan'});
+    if(plan.total!==open.count)throw Error('訊息數驗證失敗');
+    let base=safeHtmlName(item.title);const prev=used.get(base)||0;used.set(base,prev+1);if(prev)base+='_'+(prev+1);
+    for(let j=0;j<plan.volumes.length;j++){
+      const part=await ask({type:'htmlVolume',index:j});
+      if(part.start!==plan.volumes[j].start||part.count!==plan.volumes[j].count)throw Error('HTML 範圍驗證失敗');
+      estimatedBytes+=part.html.length*3;
+      if(estimatedBytes>250_000_000)throw Error('這次 HTML 輸出估算超過 250 MB 安全記憶體界線，請減少勾選數量並分次下載');
+      files.push({name:base+(plan.volumes.length>1?'_part'+String(j+1).padStart(3,'0'):'')+'.html',content:part.html});
+      if(files.length>300)throw Error('分卷數量過多，請減少選取');
+    }
+   }finally{w.terminate();}
+  }
+  if(!files.length)throw Error('沒有可下載的 HTML');
+  const single=files.length===1;
+  const output=single?new Blob([files[0].content],{type:'text/html;charset=utf-8'}):zipFiles(files);
+  const url=URL.createObjectURL(output);urls.add(url);
+  const a=document.createElement('a');a.href=url;a.download=single?files[0].name:'ChatKeep_HTML_'+items.length+'段.zip';document.body.append(a);a.click();a.remove();
+  setTimeout(()=>{URL.revokeObjectURL(url);urls.delete(url);},60000);
+  $('export-status').textContent=single?'已啟動 '+files[0].name+' 下載，請確認檔案已保存。':'已啟動 '+items.length+' 段、'+files.length+' 卷 HTML 的 ZIP 下載，請確認檔案已保存。';
+ }catch(e){$('export-status').textContent='批次 HTML 未完成：'+e.message+'。未宣稱全部成功。';}
+ finally{busy=false;display();}
+});
+$('read-share').addEventListener('click',async()=>{
+ const button=$('read-share'),notice=$('share-read-status');
+ if(button.disabled)return;
+ let url,base;
+ try{
+   url=shareURL($('share-url').value);base=apiBase($('api-base').value);
+ }catch(e){notice.textContent='請輸入有效的 ChatGPT 公開分享連結。';return;}
+ button.disabled=true;notice.textContent='正在取得公開分享對話，此操作不會生成 Word。';
+ const ctrl=new AbortController(),watch=setTimeout(()=>ctrl.abort(),55000);
+ try{
+   const response=await fetch(base+'/api/share-reader-v1',{
+     method:'POST',headers:{'Content-Type':'application/json'},
+     body:JSON.stringify({url}),credentials:'omit',cache:'no-store',signal:ctrl.signal
+   });
+   const packet=await response.json();
+   if(!response.ok||!packet.ok)throw Error(packet.error?.message||'分享連結閱讀版無法取得內容');
+   if(!packet.data||!Array.isArray(packet.data.messages))throw Error('服務回傳格式不正確');
+   notice.textContent='已取得公開分享正文，正在本機開啟閱讀版。';
+   await reader.openShared(packet.data);
+ }catch(e){notice.textContent='無法開啟 HTML 閱讀版：'+(e.name==='AbortError'?'讀取逾時':e.message)+'。此功能需要 Render 部署新版 API，正式服務尚未更新時會顯示錯誤。';}
+ finally{clearTimeout(watch);button.disabled=false;}
+});
 const conversion=mountConversion({
  getSelected:()=>index.filter(x=>selected.has(x.key)),
  extract:(item,signal)=>{if(item.end-item.start>16_000_000){const e=Error('SELECTED_SOURCE_LIMIT');e.code=e.message;throw e;}return extract(item,signal);},

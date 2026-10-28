@@ -9,6 +9,30 @@ from conversation_export import export_conversation, envelope
 
 
 def result(body, mode='official'):
+    if mode == 'share_reader':
+        from chatkeep import extract_url, validate_url
+        payload = json.loads(body)
+        url = payload['url']
+        validate_url(url)
+        model = extract_url(url)
+        # Return only the published conversational text. No DOCX export.
+        messages = []
+        for item in model.get('messages', []):
+            if item.get('category') not in ('visible', 'non_text'):
+                continue
+            role = item.get('role')
+            if role not in ('user', 'assistant'):
+                continue
+            text = item.get('text')
+            if isinstance(text, str) and text.strip():
+                messages.append({'role': role, 'text': text})
+        if not messages:
+            raise ExtractionError('No readable messages')
+        return {'ok': True, 'data': {'title': model.get('title') or '公開分享對話',
+            'messages': messages, 'report': {'source': 'public_share',
+            'status': model.get('report', {}).get('status'),
+            'warnings': model.get('report', {}).get('warnings', []),
+            'issues': len(model.get('report', {}).get('issues', []))}}}
     if mode == 'chunk':
         from chunk_transfer import convert_chunk
         return convert_chunk(body)

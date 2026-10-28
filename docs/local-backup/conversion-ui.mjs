@@ -94,13 +94,14 @@ export function mountConversion({getSelected,extract,setLocked,queueFactory=opti
   if(active)return;
   if(queue?.jobs.some(job=>job.artifact)){notify('還有尚未釋放的成果。請先下載並清除暫存 Word，或清除全部轉換紀錄與暫存後，再開始新的轉換。');$('conversion-title').focus();return;}
   const current=++epoch;let started=false;
+  $('conversion-panel').hidden=false;
   try{
    // Validate before discarding a previous successful queue.
    const base=apiBase($('api-base').value);queue?.dispose();revoke();cards.clear();page=0;
    queue=queueFactory({base,extract,onUpdate:job=>{if(current===epoch)update(job);}});
    started=true;active=true;setLocked(true);notify('對話依序轉換中；完成後先查看各段完整性報告。');draw();
    $('conversion-title').focus();await queue.run(items);
-  }catch(e){if(current===epoch){active=false;setLocked(false);notify(explain(e.code||e.message));if(e.code==='API_NOT_CONFIGURED'){$('service-settings').open=true;$('api-base').focus();configure();}}}finally{if(current===epoch){if(started)update(queue?.current);else draw();}}
+  }catch(e){if(current===epoch){active=false;setLocked(false);notify(explain(e.code||e.message));if(e.code==='API_NOT_CONFIGURED')notify('轉換服務設定無效，目前無法執行 Word 轉換。請稍後重試。');}}finally{if(current===epoch){if(started)update(queue?.current);else draw();}}
  }
  $('share-form').addEventListener('submit',event=>{
   event.preventDefault();try{const url=shareURL($('share-url').value);$('share-url').removeAttribute('aria-invalid');$('share-error').textContent='';void start([{url,title:'公開分享對話'}]);}

@@ -37,7 +37,7 @@ def handle(env, start_response, headers, slots, rates, mode='official'):
     try: size = int(env.get('CONTENT_LENGTH') or 0)
     except (ValueError, TypeError):
         return error(400, 'INVALID_LENGTH', '請求長度無效。')
-    limit = 4096 if mode == 'share' else MAX_INPUT
+    limit = 4096 if mode in ('share', 'share_reader') else MAX_INPUT
     if not 0 < size <= limit:
         return error(413, 'INPUT_TOO_LARGE', '分享連結請求不得超過 4,096 bytes。' if mode == 'share' else '請提供不超過 2 MB 的單一對話。')
     if not rates.admit(env.get('REMOTE_ADDR', 'unknown')):
@@ -71,7 +71,7 @@ def handle(env, start_response, headers, slots, rates, mode='official'):
             return error(408, 'UPLOAD_TIMEOUT', '接收 JSON 逾時。')
         if len(body) != size:
             return error(400, 'INCOMPLETE_BODY', '請求本文不完整。')
-        if mode == 'share':
+        if mode in ('share', 'share_reader'):
             from chatkeep import validate_url, ExtractionError
             from official_json import decode, OfficialError
             try:
@@ -89,7 +89,7 @@ def handle(env, start_response, headers, slots, rates, mode='official'):
         try:
             output, _ = process.communicate(body, timeout=CONVERSION_TIMEOUT)
         except subprocess.TimeoutExpired:
-            return error(504, 'CONVERSION_TIMEOUT', '轉換逾時，已中止且未提供文件。')
+            return error(504, 'CONVERSION_TIMEOUT', '公開分享內容讀取逾時。' if mode == 'share_reader' else '轉換逾時，已中止且未提供文件。')
         if process.returncode or len(output) > MAX_RESPONSE:
             return error(503, 'RESOURCE_LIMIT', '轉換超過資源限制或工作程序中止。')
         packet = json.loads(output)
