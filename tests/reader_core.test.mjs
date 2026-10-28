@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {parseConversation,wordLikeCount,findMessages} from '../docs/local-backup/reader-core.mjs';
+import {parseConversation,wordLikeCount,findMessages,cleanDisplayText} from '../docs/local-backup/reader-core.mjs';
 const node=(id,parent,role,text,extra={})=>({id,parent,children:[],message:{author:{role},content:{content_type:'text',parts:[text]},...extra}});
 test('active branch order and off-branch exclusion',()=>{
  const a=node('a',null,'user','校慶開始');
@@ -29,4 +29,9 @@ test('exclude internal placeholder nodes from visible messages',()=>{
  };
  const result=parseConversation({current_node:'c',mapping});
  assert.deepEqual(result.messages.map(m=>m.text),['2052年結尾']);
+});
+
+test('entity markup shows only the human-readable name',()=>{
+ const raw='校名：entity["organization","新北市立青川高級中學","虛構學校"]';
+ assert.equal(cleanDisplayText(raw),'校名：新北市立青川高級中學');
 });
