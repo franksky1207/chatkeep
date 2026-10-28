@@ -61,16 +61,18 @@
 <div id="preview" class="preview" hidden tabindex="-1" role="region" aria-label="索引預覽"></div></section>
 <section class="panel" id="reader-panel" hidden aria-labelledby="reader-title">
 <div class="actions"><h2 id="reader-title">本機 HTML 閱讀版</h2><button id="reader-close" class="secondary" type="button">關閉閱讀版</button></div>
-<p class="note">此功能完全在瀏覽器本機執行，不會傳送到 Render。第一批提供閱讀與搜尋；含格式全文複製和 HTML 下載留待第二批。</p>
+<p class="note">此功能完全在瀏覽器本機執行，不會傳送到 Render。本機轉換與匯出不傳送至 Render。含格式複製分批貼入 Word；瀏覽器無法確認 Word 是否貼上成功。</p>
 <p id="reader-status" role="status" aria-live="polite"></p><p id="reader-scope" class="note"></p>
 <label for="reader-search">搜尋此對話全部主線正文</label><input id="reader-search" type="search" placeholder="搜尋正文內容">
 <div id="reader-hits" class="reader-hits" aria-live="polite"></div>
 <nav class="pagination reader-nav" aria-label="閱讀分頁"><button id="reader-first-top" class="secondary" type="button">第一頁</button><button id="reader-prev" class="secondary" type="button">上一頁</button><span id="reader-page"></span><button id="reader-next" class="secondary" type="button">下一頁</button><button id="reader-last-top" class="secondary" type="button">最後一頁</button><label class="reader-jump-label" for="reader-jump">跳到第</label><input id="reader-jump" type="number" min="1" step="1" inputmode="numeric" aria-label="指定閱讀頁數"><button id="reader-go" class="secondary" type="button">跳頁</button></nav>
+<div class="reader-export-actions actions"><button id="reader-copy-plan" type="button">準備含格式全文複製</button><button id="reader-html-download" type="button" class="secondary">下載完整 HTML</button></div>
+<div id="reader-copy-controls" class="reader-copy-controls" hidden><p id="reader-copy-info" role="status"></p><div class="actions"><button id="reader-copy-current" type="button">複製目前批次（含格式）</button><button id="reader-copy-next" type="button" class="secondary">下一批</button><button id="reader-copy-prev" type="button" class="secondary">上一批</button></div><p class="note">每次複製後，先貼入 Word，再按「下一批」。網站不會自行覆寫剪貼簿。</p></div><p id="reader-export-status" role="status" aria-live="polite"></p>
 <div id="reader-messages"></div><nav class="pagination" aria-label="閱讀頁尾分頁"><button id="reader-first" class="secondary" type="button">第一頁</button><button id="reader-prev-bottom" class="secondary" type="button">上一頁</button><span id="reader-page-bottom"></span><button id="reader-next-bottom" class="secondary" type="button">下一頁</button><button id="reader-last" class="secondary" type="button">最後一頁</button></nav>
 </section>
 <section class="panel" id="export" aria-labelledby="selected-title" hidden><h2 id="selected-title" tabindex="-1">3．已選清單與轉換</h2><p id="count" role="status" aria-live="polite"></p><p id="selection-scope" class="note"></p><div id="selected-results" role="list" aria-label="已勾選的對話"></div>
 <nav class="pagination" aria-label="已選清單分頁"><button id="selected-prev" class="secondary" type="button">上一頁已選</button><span id="selected-page"></span><button id="selected-next" class="secondary" type="button">下一頁已選</button></nav>
-<div class="actions"><button id="convert-selected" type="button">轉換選取對話為 Word</button><button id="deselect" type="button" class="quiet">清除全部選取</button></div>
+<div class="actions"><button id="download-html-selected" type="button" class="secondary">批次下載選取對話 HTML（ZIP）</button><button id="convert-selected" type="button">轉換選取對話為 Word</button><button id="deselect" type="button" class="quiet">清除全部選取</button></div>
 <details id="raw-download"><summary>另存原始對話 JSON（不是 Word）</summary><div class="details-body"><p>保留已選對話物件的原始 UTF-8 位元組，包含可能的其他分支與非可見記錄。此操作只擷取原始資料，不執行 Word 轉換，也不傳送至 Render。</p><button id="download" type="button" class="secondary">下載選取的原始 JSON</button></div></details><p id="export-status" role="status" aria-live="polite"></p></section>
 </section>
 <section class="panel" id="conversion-panel" aria-labelledby="conversion-title" hidden><h2 id="conversion-title" tabindex="-1">Word 轉換進度與下載</h2><p>每段對話依序處理，通過完整性驗證後才提供下載。大型對話會顯示目前批次；Render 轉換中沒有可用的內部百分比。</p>
