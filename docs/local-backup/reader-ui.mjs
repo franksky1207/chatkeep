@@ -24,21 +24,21 @@ function richInline(target,text){
 }
 function makeBody(text){
   const body=document.createElement('div');body.className='reader-body';
-  const lines=text.split(/\\n/);let code=null,list=null;
+  const lines=text.split(/\n/);let code=null,list=null;
   for(let i=0;i<lines.length;i++){
     const line=lines[i];
-    if(/^\\s*```/.test(line)){
+    if(/^\s*```/.test(line)){
       list=null;
       if(code){body.append(code);code=null;}else code=document.createElement('pre');
       continue;
     }
-    if(code){code.textContent+=line+'\\n';continue;}
-    const heading=/^(#{1,6})\\s+(.+)$/.exec(line);
+    if(code){code.textContent+=line+'\n';continue;}
+    const heading=/^(#{1,6})\s+(.+)$/.exec(line);
     if(heading){list=null;const h=document.createElement('h'+Math.min(heading[1].length+1,6));richInline(h,heading[2]);body.append(h);continue;}
-    if(line.includes('|')&&i+1<lines.length&&/^\\s*\\|?\\s*:?-{3,}/.test(lines[i+1])){
+    if(line.includes('|')&&i+1<lines.length&&/^\s*\|?\s*:?-{3,}/.test(lines[i+1])){
       list=null;
       const table=document.createElement('table');
-      const cells=s=>s.trim().replace(/^\\|/,'').replace(/\\|$/,'').split('|').map(x=>x.trim());
+      const cells=s=>s.trim().replace(/^\|/,'').replace(/\|$/,'').split('|').map(x=>x.trim());
       const header=cells(line),thead=document.createElement('thead'),hr=document.createElement('tr');
       for(const cell of header){const th=document.createElement('th');richInline(th,cell);hr.append(th);}thead.append(hr);table.append(thead);
       i++;
@@ -49,15 +49,15 @@ function makeBody(text){
       }
       table.append(tbody);body.append(table);continue;
     }
-    const bullet=/^\\s*([-*+] |\\d+[.)] )(.+)$/.exec(line);
+    const bullet=/^\s*([-*+] |\d+[.)] )(.+)$/.exec(line);
     if(bullet){
-      const kind=/\\d/.test(bullet[1][0])?'ol':'ul';
+      const kind=/\d/.test(bullet[1][0])?'ol':'ul';
       if(!list||list.tagName.toLowerCase()!==kind){list=document.createElement(kind);body.append(list);}
       const li=document.createElement('li');richInline(li,bullet[2]);list.append(li);continue;
     }
     list=null;
-    const quote=/^>\\s?(.*)$/.exec(line);
-    const el=document.createElement(quote?'blockquote':'p');richInline(el,quote?quote[1]:line||'\\u00a0');body.append(el);
+    const quote=/^>\s?(.*)$/.exec(line);
+    const el=document.createElement(quote?'blockquote':'p');richInline(el,quote?quote[1]:line||'\u00a0');body.append(el);
   }
   if(code)body.append(code);
   return body;
