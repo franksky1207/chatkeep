@@ -44,4 +44,4 @@ jobs:
           主站：https://franksky1207.github.io/chatkeep/
           原始碼：https://github.com/franksky1207/chatkeep
           EOF
-          gh release create v1.1.0 --target "$TARGET_SHA" --title "ChatKeep v1.1.0｜對話收藏" --notes-file "$RUNNER_TEMP/RELEASE_NOTES.md" --verify-tag
+          gh release create v1.1.0 --target "$TARGET_SHA" --title "ChatKeep v1.1.0｜對話收藏" --notes-file "$RUNNER_TEMP/RELEASE_NOTES.md"
