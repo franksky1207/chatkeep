@@ -107,11 +107,11 @@ def configure(document):
     _field(footer, "PAGE")
     return document
 
-def polish_tables(document, available_twips=None):
+def polish_tables(document, available_twips=None, tables=None):
     if available_twips is None:
         section = document.sections[0]
         available_twips = (section.page_width - section.left_margin - section.right_margin) // 635
-    for table in document.tables:
+    for table in (document.tables if tables is None else tables):
         # Cell.add_table initially uses the full cell width, including padding.
         # Explicitly constrain both preferred width and grid to the parent's
         # *content* width. Older Writer versions otherwise clip nested cells.

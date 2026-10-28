@@ -17,7 +17,8 @@ from urllib.parse import urlsplit
 from socketserver import ThreadingMixIn
 from wsgiref.simple_server import WSGIServer, WSGIRequestHandler
 from chatkeep import ExtractionError, extract_url, validate_url
-from word_export import ExportError, build_docx, filename_for
+from word_export import ExportError, filename_for
+from conversation_export import export_conversation
 
 ROOT = Path(__file__).parent / 'web'
 SLOTS = BoundedSemaphore(max(1, min(2, int(os.environ.get('CHATKEEP_MAX_CONCURRENT', '2')))))
@@ -47,15 +48,19 @@ def convert(url, emit):
         on_download_progress=lambda c, t: progress('fetch', c, t),
         on_parse_progress=lambda c, t: progress('parse', c, t))
     warnings = []
-    data = build_docx(model, rich=True, on_progress=lambda c, t: progress('word', c, t),
+    artifact = export_conversation(model, 'share_link', allow_zip=False, strict=False, check=getattr(emit, 'check', None),
+                      on_progress=lambda c, t: progress('word', c, t),
                       on_pack=lambda: emit({'stage': 'pack', 'message': '正在封裝文件…', 'percent': None}),
                       warnings_out=warnings)
+    data = artifact['data']
+    model['report']['export'] = artifact['report']
     model['report']['rendering_status'] = 'partial' if warnings else 'rendered'
     if warnings:
         model['report']['rendering_warnings'] = warnings
         model['report']['warnings'].append('閱讀版有 %d 項格式或媒體限制，文件內已註記。' % len(warnings))
     emit({'stage': 'done', 'message': 'Word 已產生，請先查看完整性報告。',
           'report': model['report'], 'filename': filename_for(model['title']),
+          'api_version': 1, 'artifact_type': 'docx', 'mime_type': artifact['mime_type'],
           'document': base64.b64encode(data).decode('ascii')})
 
 
@@ -114,8 +119,28 @@ class Application:
             return [value]
         host = env.get('HTTP_HOST', '')
         if not valid_host(host):
+            if env.get('PATH_INFO') in ('/api/convert-json', '/api/convert-v2', '/api/convert-chunk-v1'):
+                return response('403 Forbidden', json.dumps({'ok': False, 'error': {
+                    'code': 'HOST_FORBIDDEN', 'message': '主機不在允許清單。'}}, ensure_ascii=False).encode())
             return response('403 Forbidden', '主機不在允許清單。')
         method, path = env.get('REQUEST_METHOD'), env.get('PATH_INFO')
+        if path in ('/api/convert-json', '/api/convert-v2', '/api/convert-chunk-v1'):
+            from api_origin import allowed_origin, cors_headers
+            api_headers = HEADERS + cors_headers(env)
+            if method == 'OPTIONS':
+                requested = {x.strip().lower() for x in env.get('HTTP_ACCESS_CONTROL_REQUEST_HEADERS', '').split(',') if x.strip()}
+                accepted = (allowed_origin(env) and bool(env.get('HTTP_ORIGIN')) and
+                            env.get('HTTP_ACCESS_CONTROL_REQUEST_METHOD') == 'POST' and
+                            requested <= {'content-type'} and not env.get('HTTP_COOKIE') and
+                            not env.get('HTTP_AUTHORIZATION'))
+                code = '204 No Content' if accepted else '403 Forbidden'
+                extra = [('Access-Control-Allow-Methods', 'POST'),
+                         ('Access-Control-Allow-Headers', 'Content-Type'),
+                         ('Access-Control-Max-Age', '600')] if accepted else []
+                start_response(code, api_headers + extra + [('Content-Length', '0')])
+                return [b'']
+            from json_api import handle
+            return handle(env, start_response, api_headers, SLOTS, self.rates, mode='share' if path == '/api/convert-v2' else 'chunk' if path == '/api/convert-chunk-v1' else 'official')
         files = {'/': ('index.html', 'text/html; charset=utf-8'),
                  '/app.js': ('app.js', 'text/javascript; charset=utf-8'),
                  '/style.css': ('style.css', 'text/css; charset=utf-8')}
@@ -170,13 +195,17 @@ class Application:
                 except Full:
                     continue
             raise ConversionCancelled()
+        def check():
+            if stopped.is_set() or time.monotonic() > deadline:
+                raise ConversionCancelled()
+        emit.check = check
         def worker():
             try:
                 convert(url, emit)
             except ConversionCancelled:
                 pass
             except (ExtractionError, ExportError) as exc:
-                try: emit({'stage': 'error', 'message': str(exc)})
+                try: emit({'stage': 'error', 'message': str(exc), 'code': getattr(exc, 'code', 'EXTRACTION_FAILED')})
                 except ConversionCancelled: pass
             except Exception:
                 try: emit({'stage': 'error', 'message': '轉換失敗，未產生可驗證文件。請稍後重試。'})
