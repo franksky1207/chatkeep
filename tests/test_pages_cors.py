@@ -37,12 +37,67 @@ class PagesCorsTests(unittest.TestCase):
     def test_preflight_denials(self):
         for changes in [dict(HTTP_ORIGIN='https://evil.test'), dict(HTTP_ORIGIN='null'),
                         dict(HTTP_ORIGIN=PAGES+'/path'), dict(HTTP_ORIGIN='https://franksky1207.github.io.evil.test'),
+                        dict(HTTP_ORIGIN=PAGES+'/'),
                         dict(HTTP_ACCESS_CONTROL_REQUEST_HEADERS='Authorization'),
                         dict(HTTP_ACCESS_CONTROL_REQUEST_METHOD='DELETE'), dict(HTTP_COOKIE='secret')]:
             args = dict(REQUEST_METHOD='OPTIONS', HTTP_ACCESS_CONTROL_REQUEST_METHOD='POST',
                         HTTP_ACCESS_CONTROL_REQUEST_HEADERS='Content-Type')
             args.update(changes)
             self.assertEqual(self.call(**args)[0], 403)
+
+    def test_precise_private_preflight_diagnostics(self):
+        cases = [
+            ({'HTTP_HOST':'private.invalid'}, 'HOST_FORBIDDEN'),
+            ({'HTTP_ORIGIN':'https://private.invalid'}, 'ORIGIN_FORBIDDEN'),
+            ({'HTTP_ACCESS_CONTROL_REQUEST_METHOD':'DELETE'}, 'PREFLIGHT_METHOD_FORBIDDEN'),
+            ({'HTTP_ACCESS_CONTROL_REQUEST_HEADERS':'x-private-header'}, 'PREFLIGHT_HEADERS_FORBIDDEN'),
+            ({'HTTP_COOKIE':'PRIVATE_COOKIE'}, 'PREFLIGHT_CREDENTIALS_FORBIDDEN'),
+            ({'HTTP_AUTHORIZATION':'PRIVATE_AUTH'}, 'PREFLIGHT_CREDENTIALS_FORBIDDEN')]
+        for changes, code in cases:
+            args = dict(REQUEST_METHOD='OPTIONS', HTTP_ACCESS_CONTROL_REQUEST_METHOD='POST',
+                        HTTP_ACCESS_CONTROL_REQUEST_HEADERS='content-type', QUERY_STRING='PRIVATE_QUERY')
+            args.update(changes)
+            with self.assertLogs('chatkeep.cors', level='WARNING') as logs:
+                status, headers, value = self.call(**args)
+            self.assertEqual(status, 403)
+            self.assertEqual(headers['X-ChatKeep-Preflight'], code)
+            self.assertEqual(logs.records[0].getMessage(), 'chatkeep_preflight_denied status=403 code='+code)
+            self.assertEqual(len(logs.records), 1)
+            self.assertIsNone(value)
+            if code in ('HOST_FORBIDDEN', 'ORIGIN_FORBIDDEN'):
+                self.assertNotIn('Access-Control-Allow-Origin', headers)
+            else:
+                self.assertEqual(headers['Access-Control-Allow-Origin'], PAGES)
+            self.assertNotIn('Access-Control-Allow-Credentials', headers)
+
+    def test_render_https_termination_and_webkit_headers(self):
+        # Explicit Pages allowlist must work despite internal HTTP. Never trust
+        # client-supplied forwarded protocol/host to admit a different origin.
+        with patch.dict(os.environ, {'RENDER_EXTERNAL_HOSTNAME':'chatkeep.onrender.com'}):
+            for requested in ['', 'content-type', 'Content-Type', ' content-type ']:
+                status, headers, _ = self.call(HTTP_HOST='chatkeep.onrender.com',
+                    REQUEST_METHOD='OPTIONS', HTTP_ACCESS_CONTROL_REQUEST_METHOD='POST',
+                    HTTP_ACCESS_CONTROL_REQUEST_HEADERS=requested,
+                    HTTP_ACCEPT='*/*', HTTP_ACCEPT_LANGUAGE='zh-TW,zh-Hant;q=0.9',
+                    HTTP_USER_AGENT='Synthetic WebKit', HTTP_SEC_FETCH_MODE='cors',
+                    HTTP_SEC_FETCH_DEST='empty', HTTP_X_FORWARDED_PROTO='https')
+                self.assertEqual(status, 204)
+                self.assertEqual(headers['X-ChatKeep-Preflight'], 'ACCEPTED')
+                self.assertEqual(headers['Access-Control-Allow-Origin'], PAGES)
+            self.assertEqual(self.call(HTTP_HOST='chatkeep.onrender.com')[0], 200)
+            self.assertEqual(self.call(HTTP_ORIGIN='https://evil.test',
+                HTTP_X_FORWARDED_PROTO='https', HTTP_X_FORWARDED_HOST='evil.test')[0], 403)
+            self.assertEqual(self.call(HTTP_HOST='evil.test', HTTP_X_FORWARDED_HOST='chatkeep.onrender.com')[0], 403)
+
+    def test_missing_or_malformed_environment_fails_closed(self):
+        from api_origin import preflight_denial
+        env = dict(HTTP_HOST='chatkeep.onrender.com', HTTP_ORIGIN=PAGES,
+                   HTTP_ACCESS_CONTROL_REQUEST_METHOD='POST', HTTP_ACCESS_CONTROL_REQUEST_HEADERS='content-type')
+        for configured in ['', PAGES+'/', PAGES+'/chatkeep/', 'https://other.invalid']:
+            with patch.dict(os.environ, {'CHATKEEP_ALLOWED_ORIGINS':configured}):
+                self.assertEqual(preflight_denial(env), 'ORIGIN_FORBIDDEN')
+        with patch.dict(os.environ, {'CHATKEEP_ALLOWED_ORIGINS':PAGES}):
+            self.assertIsNone(preflight_denial(env))
 
     def test_real_cross_site_converter_and_exposed_retry(self):
         status, headers, value = self.call()
