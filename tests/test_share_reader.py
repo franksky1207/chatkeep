@@ -4,6 +4,11 @@ from unittest.mock import patch
 from official_worker import result
 
 class ShareReaderTests(unittest.TestCase):
+    def test_server_registers_reader_route(self):
+        from pathlib import Path
+        source = (Path(__file__).resolve().parent.parent / 'server.py').read_text(encoding='utf-8')
+        self.assertIn("if path in ('/api/convert-json', '/api/convert-v2', '/api/convert-chunk-v1', '/api/share-reader-v1'):", source)
+
     def test_share_reader_reuses_extraction(self):
         model={'title':'範例分享','messages':[
           {'category':'visible','role':'user','text':'你好'},
