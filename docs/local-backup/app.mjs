@@ -200,7 +200,7 @@ window.addEventListener('pagehide',()=>{worker?.terminate();for(const url of url
 const reader=mountReader({extract,isBusy:()=>busy||cleaning||conversionLocked});
 $('download-html-selected').addEventListener('click',async()=>{
  if(busy||!selected.size)return;const items=index.filter(x=>selected.has(x.key));busy=true;controls();
- const files=[],used=new Map();let sourceCount=0;
+ const files=[],used=new Map();let sourceCount=0,estimatedBytes=0;
  try{
   if(items.length>120)throw Error('一次最多處理 120 段，請縮小選取範圍');
   for(const item of items){
@@ -222,6 +222,8 @@ $('download-html-selected').addEventListener('click',async()=>{
     for(let j=0;j<plan.volumes.length;j++){
       const part=await ask({type:'htmlVolume',index:j});
       if(part.start!==plan.volumes[j].start||part.count!==plan.volumes[j].count)throw Error('HTML 範圍驗證失敗');
+      estimatedBytes+=part.html.length*3;
+      if(estimatedBytes>250_000_000)throw Error('這次 HTML 輸出估算超過 250 MB 安全記憶體界線，請減少勾選數量並分次下載');
       files.push({name:base+(plan.volumes.length>1?'_part'+String(j+1).padStart(3,'0'):'')+'.html',content:part.html});
       if(files.length>300)throw Error('分卷數量過多，請減少選取');
     }
