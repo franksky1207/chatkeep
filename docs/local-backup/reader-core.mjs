@@ -1,4 +1,11 @@
 /* Local-only active-path reader. No Render transfer or Word caps. */
+export function cleanDisplayText(input){
+  return String(input)
+    .replace(/entity(\[[^\]]*\])/gu,(_,payload)=>{
+      try{const value=JSON.parse(payload);return typeof value[1]==='string'?value[1]:'';}catch{return '';}
+    })
+    .replace(/(?:memcite|filecite|cite)/gu,'');
+}
 export function parseConversation(source){
   if(!source || typeof source!=='object' || Array.isArray(source) || !source.mapping || typeof source.mapping!=='object' || Array.isArray(source.mapping))throw Error('不是可辨識的單段官方對話 JSON');
   const mapping=source.mapping, keys=Object.keys(mapping);
@@ -40,7 +47,7 @@ export function parseConversation(source){
     // Do not surface internal-only or placeholder-only messages as conversation.
     if(/^\s*[〔\[{（(]?\s*(?:thoughts|reasoning_recap|reasoning_recap_summary|model_editable_context|analysis)\s*[:：]/i.test(text)) {hidden++;continue;}
     if(!text.trim())continue;
-    messages.push({id:key,role:role==='user'?'user':role==='assistant'?'assistant':'other',text:text.replace(/(?:memcite|filecite|cite)/g,'')});
+    messages.push({id:key,role:role==='user'?'user':role==='assistant'?'assistant':'other',text:cleanDisplayText(text)});
   }
   return {title:typeof source.title==='string'?source.title:'未命名對話',messages,summary:{rawNodes:keys.length,pathNodes:path.length,offBranch:keys.length-path.length,hidden,nonText,warnings}};
 }
