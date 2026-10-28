@@ -16,7 +16,7 @@ export function parseConversation(source){
   for(const {key,node} of path){
     const m=node.message;if(!m)continue;
     const role=m.author?.role||'unknown',channel=m.channel||m.metadata?.channel;
-    if(role==='system'||role==='developer'||role==='tool'||m.metadata?.is_visually_hidden_from_conversation===true||['analysis','justify','confidence'].includes(channel)||(role==='assistant'&&m.recipient&&m.recipient!=='all')){hidden++;continue;}
+    if(role==='system'||role==='developer'||role==='tool'||m.metadata?.is_visually_hidden_from_conversation===true||['analysis','justify','confidence'].includes(channel)||['thoughts','reasoning_recap','model_editable_context','reasoning_recap_summary','analysis'].includes(m.content?.content_type)||(role==='assistant'&&m.recipient&&m.recipient!=='all')){hidden++;continue;}
     const parts=[],content=m.content;
     if(typeof content==='string')parts.push(content);
     else if(content&&typeof content==='object'){
