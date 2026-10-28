@@ -7,6 +7,7 @@ on:
       - 'docs/local-backup/app.mjs'
       - 'docs/index.html'
       - 'tests/reader_core.test.mjs'
+      - 'tests/reader_export.test.mjs'
       - '.github/workflows/reader-v12-checks.yml'
   workflow_dispatch:
 permissions:
@@ -26,5 +27,6 @@ jobs:
           node --check docs/local-backup/reader-core.mjs
           node --check docs/local-backup/reader-worker.mjs
           node --check docs/local-backup/reader-ui.mjs
-          node --test tests/reader_core.test.mjs
+          node --check docs/local-backup/reader-export.mjs
+          node --test tests/reader_core.test.mjs tests/reader_export.test.mjs
           git diff --check
