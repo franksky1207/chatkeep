@@ -1,0 +1,47 @@
+name: Publish ChatKeep v1.1.0
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-v1.1.0.yml'
+permissions:
+  contents: write
+jobs:
+  publish:
+    if: github.repository == 'franksky1207/chatkeep'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Publish annotated v1.1.0 release from current main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TARGET_SHA: ${{ github.sha }}
+        run: |
+          if gh release view v1.1.0 >/dev/null 2>&1; then
+            echo "v1.1.0 already exists; no duplicate release."
+            exit 0
+          fi
+          cat > "$RUNNER_TEMP/RELEASE_NOTES.md" <<'EOF'
+          ## ChatKeep｜對話收藏 v1.1.0
+
+          ChatKeep 的 GitHub Pages 主站已串接 Render Word 轉換服務，可輸入 ChatGPT 公開分享連結轉成 DOCX；官方備份 JSON 本機索引、搜尋、選取與分批轉換功能也已提供。
+
+          ### 本版重點
+          - GitHub Pages 提供分享連結與官方備份雙入口。
+          - 在瀏覽器本機解析／搜尋備份，只將選取的對話送往 Render 轉換。
+          - 支援 DOCX、長對話分卷／ZIP、完整性報告與成果暫存管理。
+          - 新增跨來源存取安全白名單與拒絕原因診斷。
+          - 「清除暫存 Word」清楚標示不影響已下載檔案。
+
+          ### 驗證及已知限制
+          - 已由使用者在 iPhone Safari 實際完成「公開分享連結 → DOCX 下載並開啟」。
+          - GitHub Pages 部署成功；合成資料與自動化測試不等同於真實備份或所有裝置驗收。
+          - **真實 440 MB 官方備份、超長對話分批／ZIP、桌面 Word 排版尚待使用者後續實測**，本版不宣稱已通過。
+          - 轉換有每段來源、訊息、批次、成果容量及後端執行時間等限制；部分特殊媒體／互動內容無法完整還原。
+          - 網站不會自動判定已下載檔案是否成功儲存；請確認下載後再清除暫存。
+
+          主站：https://franksky1207.github.io/chatkeep/
+          原始碼：https://github.com/franksky1207/chatkeep
+          EOF
+          gh release create v1.1.0 --target "$TARGET_SHA" --title "ChatKeep v1.1.0｜對話收藏" --notes-file "$RUNNER_TEMP/RELEASE_NOTES.md" --verify-tag
