@@ -218,6 +218,18 @@ $('download-html-selected').addEventListener('click',async()=>{
    });
    try{
     const open=await ask({type:'open',blob});
+    if(items.length===1){
+      try{
+        const full=await ask({type:'htmlSingle'});
+        if(full.count!==open.count)throw Error('HTML 單檔訊息數驗證失敗');
+        if(full.html.length*3>250_000_000)throw Error('單檔 HTML 超過安全記憶體界線');
+        files.push({name:safeHtmlName(item.title)+'.html',content:full.html});
+        continue;
+      }catch(singleError){
+        if(!/安全.*界線|超過安全/.test(singleError.message))throw singleError;
+        $('export-status').textContent='單檔超過安全界線，改以分卷 ZIP 保留完整內容。';
+      }
+    }
     const plan=await ask({type:'htmlPlan'});
     if(plan.total!==open.count)throw Error('訊息數驗證失敗');
     let base=safeHtmlName(item.title);const prev=used.get(base)||0;used.set(base,prev+1);if(prev)base+='_'+(prev+1);
