@@ -119,7 +119,7 @@ class Application:
             return [value]
         host = env.get('HTTP_HOST', '')
         if not valid_host(host):
-            if env.get('PATH_INFO') in ('/api/convert-json', '/api/convert-v2', '/api/convert-chunk-v1'):
+            if env.get('PATH_INFO') in ('/api/convert-json', '/api/convert-v2', '/api/convert-chunk-v1', '/api/share-reader-v1'):
                 if env.get('REQUEST_METHOD') == 'OPTIONS':
                     from api_origin import preflight_diagnostic
                     start_response('403 Forbidden', HEADERS + preflight_diagnostic('HOST_FORBIDDEN') + [('Content-Length', '0')])
@@ -142,7 +142,7 @@ class Application:
                 start_response(code, api_headers + extra + [('Content-Length', '0')])
                 return [b'']
             from json_api import handle
-            return handle(env, start_response, api_headers, SLOTS, self.rates, mode='share' if path == '/api/convert-v2' else 'chunk' if path == '/api/convert-chunk-v1' else 'official')
+            return handle(env, start_response, api_headers, SLOTS, self.rates, mode='share_reader' if path == '/api/share-reader-v1' else 'share' if path == '/api/convert-v2' else 'chunk' if path == '/api/convert-chunk-v1' else 'official')
         files = {'/': ('index.html', 'text/html; charset=utf-8'),
                  '/app.js': ('app.js', 'text/javascript; charset=utf-8'),
                  '/style.css': ('style.css', 'text/css; charset=utf-8')}
