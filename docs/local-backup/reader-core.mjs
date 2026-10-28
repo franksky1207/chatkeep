@@ -1,7 +1,7 @@
 /* Local-only active-path reader. No Render transfer or Word caps. */
 export function cleanDisplayText(input){
   return String(input)
-    .replace(/entity(\[[^\]]*\])/gu,(_,payload)=>{
+    .replace(/entity(\[[\s\S]*?\])/gu,(_,payload)=>{
       try{const value=JSON.parse(payload);return typeof value[1]==='string'?value[1]:'';}catch{return '';}
     })
     .replace(/(?:memcite|filecite|cite)/gu,'');
