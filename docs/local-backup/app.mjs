@@ -1,3 +1,4 @@
+import {zipFiles,safeHtmlName} from './reader-export.mjs';
 import {mountReader} from './reader-ui.mjs';
 import {safeFilename} from './conversion.mjs';
 import {mountModes} from './site-ui.mjs';
@@ -50,6 +51,7 @@ function controls(){
   for(const id of ['scan','reset','files','search','select-visible','deselect','series','first','last','date-field','from','to','convert-share','api-base','share-url','reset-filters','results-prev','results-next','selected-prev','selected-next'])$(id).disabled=busy;
   $('cancel').hidden=!busy||conversionLocked; $('cancel').disabled=cleaning; $('download').disabled=busy||!selected.size;
   $('convert-selected').disabled=busy||!selected.size;
+  $('download-html-selected').disabled=busy||!selected.size;
   $('results-prev').disabled=busy||resultPage===0;$('results-next').disabled=busy||(resultPage+1)*PAGE_SIZE>=lastRows.length;
   $('count').textContent='已選 '+selected.size+' 段';
   renderSelected();
@@ -196,6 +198,43 @@ $('download').addEventListener('click',async()=>{
 // the UI documents site-storage cleanup instead of deleting another tab's files heuristically.
 window.addEventListener('pagehide',()=>{worker?.terminate();for(const url of urls)URL.revokeObjectURL(url);if(directory&&navigator.storage?.getDirectory)void navigator.storage.getDirectory().then(root=>root.removeEntry(directory,{recursive:true})).catch(()=>{});});
 const reader=mountReader({extract,isBusy:()=>busy||cleaning||conversionLocked});
+$('download-html-selected').addEventListener('click',async()=>{
+ if(busy||!selected.size)return;const items=index.filter(x=>selected.has(x.key));busy=true;controls();
+ const files=[],used=new Map();let sourceCount=0;
+ try{
+  if(items.length>120)throw Error('一次最多處理 120 段，請縮小選取範圍');
+  for(const item of items){
+   $('export-status').textContent='正在產生 HTML：'+(++sourceCount)+'／'+items.length+' · '+item.title;
+   const blob=await extract(item);
+   const w=new Worker(new URL('./reader-worker.mjs',import.meta.url),{type:'module'});
+   let seq=0;
+   const ask=payload=>new Promise((resolve,reject)=>{
+     const id=++seq;
+     w.onmessage=({data})=>{if(data.request!==id)return;data.type==='readerError'?reject(Error(data.message)):resolve(data);};
+     w.onerror=()=>reject(Error('HTML 背景解析失敗'));
+     w.postMessage({...payload,request:id});
+   });
+   try{
+    const open=await ask({type:'open',blob});
+    const plan=await ask({type:'htmlPlan'});
+    if(plan.total!==open.count)throw Error('訊息數驗證失敗');
+    let base=safeHtmlName(item.title);const prev=used.get(base)||0;used.set(base,prev+1);if(prev)base+='_'+(prev+1);
+    for(let j=0;j<plan.volumes.length;j++){
+      const part=await ask({type:'htmlVolume',index:j});
+      if(part.start!==plan.volumes[j].start||part.count!==plan.volumes[j].count)throw Error('HTML 範圍驗證失敗');
+      files.push({name:base+(plan.volumes.length>1?'_part'+String(j+1).padStart(3,'0'):'')+'.html',content:part.html});
+      if(files.length>300)throw Error('分卷數量過多，請減少選取');
+    }
+   }finally{w.terminate();}
+  }
+  if(!files.length)throw Error('沒有可下載的 HTML');
+  const zip=zipFiles(files),url=URL.createObjectURL(zip);urls.add(url);
+  const a=document.createElement('a');a.href=url;a.download='ChatKeep_HTML_'+items.length+'段.zip';document.body.append(a);a.click();a.remove();
+  setTimeout(()=>{URL.revokeObjectURL(url);urls.delete(url);},60000);
+  $('export-status').textContent='已啟動 '+items.length+' 段、'+files.length+' 卷 HTML 的 ZIP 下載，請確認檔案已保存。';
+ }catch(e){$('export-status').textContent='批次 HTML 未完成：'+e.message+'。未宣稱全部成功。';}
+ finally{busy=false;display();}
+});
 const conversion=mountConversion({
  getSelected:()=>index.filter(x=>selected.has(x.key)),
  extract:(item,signal)=>{if(item.end-item.start>16_000_000){const e=Error('SELECTED_SOURCE_LIMIT');e.code=e.message;throw e;}return extract(item,signal);},
