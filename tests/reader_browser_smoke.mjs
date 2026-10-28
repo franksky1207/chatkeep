@@ -43,6 +43,26 @@ assert.match(selectedDownload.suggestedFilename(),/HTML 測試對話\.html$/);
 assert.equal(await page.locator('#reader-panel').isVisible(),false);
 await page.locator('#tab-share').click();
 assert.equal(await page.locator('#mode-share').isVisible(),true);
+const shareUrl='https://chatgpt.com/share/00000000-0000-0000-0000-000000000000';
+await page.locator('#share-url').fill(shareUrl);
+await page.route('**/api/share-reader-v1',async route=>{
+  const request=route.request();
+  assert.equal(request.method(),'POST');
+  assert.equal(JSON.parse(request.postData()).url,shareUrl);
+  await route.fulfill({status:200,contentType:'application/json',
+    headers:{'Access-Control-Allow-Origin':'*'},
+    body:JSON.stringify({ok:true,data:{title:'公開分享測試',messages:[
+      {role:'user',text:'測試起點'},
+      {role:'assistant',text:'測試終點 **重點**'}
+    ],report:{status:'extracted_unverified',issues:0,warnings:[]}}})});
+});
+await page.locator('#read-share').click();
+await page.locator('#reader-messages article').first().waitFor({timeout:10000});
+assert.equal(await page.locator('#reader-messages article').count(),2);
+assert.match(await page.locator('#reader-title').innerText(),/公開分享測試/);
+assert.equal(await page.locator('#reader-search').isVisible(),true);
+assert.equal(await page.locator('#reader-copy-plan').isVisible(),true);
+
 assert.deepEqual(errors,[]);
 console.log('PASS: real Chromium smoke');
 await b.close();
