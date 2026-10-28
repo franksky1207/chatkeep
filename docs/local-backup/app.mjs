@@ -1,12 +1,38 @@
+import {filterRows,report,seriesNumber,isoDate} from './filters.mjs';
 const $=id=>document.getElementById(id);
 let index=[],selected=new Set(),worker=null,busy=false,directory=null,generation=0,request=0;
 const pending=new Map(),urls=new Set(); let failures=[],completed=0; let cleaning=false;
 function status(s,fail=false){$('progress').textContent=s;$('progress').className=fail?'error':'';}
 function safe(s){return String(s||'未命名對話').replace(/[<>:"/\\|?*\x00-\x1f]/g,'_').slice(0,70).trim()||'未命名對話';}
 function date(value){const d=new Date(value*1000);return value!=null&&!Number.isNaN(d.valueOf())?d.toLocaleDateString('zh-TW'):'日期未提供';}
-function matches(){const q=$('search').value.trim().toLocaleLowerCase();return index.filter(x=>x.title.toLocaleLowerCase().includes(q));}
+function options(){return {query:$('search').value,series:$('series').value,first:$('first').value,last:$('last').value,dateField:$('date-field').value,from:$('from').value,to:$('to').value};}
+function matches(){return filterRows(index,options());}
+function summary(rows){
+  const o=options(),r=report(rows,o),all=report(index,{});
+  const problems=[];
+  if(o.from&&o.to&&o.from>o.to)problems.push('日期起點晚於終點');
+  if(o.series&&o.first&&o.last&&Number(o.first)>Number(o.last))problems.push('編號起點大於終點');
+  if(r.missing.length)problems.push('範圍內未找到編號：'+r.missing.join('、'));
+  if(r.duplicates.length)problems.push('重複編號：'+r.duplicates.map(x=>x.number+'（'+x.count+' 段）').join('、'));
+  if(failures.length)problems.push('有 '+failures.length+' 個來源解析失敗，報告不代表整份備份完整');
+  $('report').textContent='索引總對話：'+all.conversations+' 段｜目前符合：'+r.conversations+' 段｜原始 mapping 節點欄位合計：'+r.nodes+
+    '\n可匯出訊息數／可見訊息數：未驗證（此階段未解析當前分支與訊息內容）'+
+    '\n選取數：'+selected.size+' 段｜資料來源：'+new Set(rows.map(x=>x.label)).size+' 個'+
+    (problems.length?'\n提醒：'+problems.join('；'):'\n編號缺漏報告僅代表目前已成功匯入且符合篩選的資料。');
+}
+function preview(item){
+  const number=$('series').value?seriesNumber(item.title,$('series').value):null;
+  $('preview').hidden=false;
+  $('preview').textContent='對話預覽（僅索引資料，不讀取或顯示私人訊息本文）\n標題：'+item.title+
+    '\n官方 ID：'+(item.originalId??'未提供')+'\n建立日期：'+(isoDate(item.create_time)??'未提供')+
+    '\n更新日期：'+(isoDate(item.update_time)??'未提供')+'\n來源：'+item.label+
+    '\n原始 mapping 節點欄位：'+item.nodes+
+    (number!==null?'\n系列編號：'+number:'')+
+    '\n原始位元組範圍：['+item.start+', '+item.end+')'+
+    '\n警告：節點欄位不等於可見訊息數；分支、隱藏訊息、內容格式及可匯出訊息數尚未逐一驗證。';
+}
 function controls(){
-  for(const id of ['scan','reset','files','search','select-visible','deselect'])$(id).disabled=busy;
+  for(const id of ['scan','reset','files','search','select-visible','deselect','series','first','last','date-field','from','to'])$(id).disabled=busy;
   $('cancel').hidden=!busy; $('cancel').disabled=cleaning; $('download').disabled=busy||!selected.size;
   $('count').textContent='已選 '+selected.size+' 段';
 }
@@ -19,9 +45,9 @@ function display(){
     c.addEventListener('change',()=>{if(busy)return;c.checked?selected.add(item.key):selected.delete(item.key);controls();});
     const label=document.createElement('label');label.htmlFor=c.id;label.textContent=item.title;
     const sub=document.createElement('div');sub.className='sub';sub.textContent=date(item.update_time)+' · '+item.label+' · '+item.nodes+' 個原始 mapping 節點欄位（非可見訊息數）';
-    label.append(sub);row.append(c,label);frag.append(row);
+    label.append(sub);const view=document.createElement('button');view.type='button';view.className='btn secondary';view.textContent='預覽';view.disabled=busy;view.addEventListener('click',()=>preview(item));row.append(c,label,view);frag.append(row);
   }
-  $('results').replaceChildren(frag);controls();
+  $('results').replaceChildren(frag);controls();summary(rows);
 }
 async function release(){
   cleaning=true;generation++;const oldWorker=worker;worker=null;
@@ -36,7 +62,7 @@ async function release(){
   for(const {reject} of pending.values())reject(Error('操作已取消'));pending.clear();
   for(const url of urls)URL.revokeObjectURL(url);urls.clear();
   index=[];selected.clear();$('picker').hidden=true;$('export').hidden=true;
-  $('export-status').textContent='';$('results').replaceChildren();
+  $('export-status').textContent='';$('results').replaceChildren();$('preview').hidden=true;$('report').textContent='';
   const old=directory;directory=null;
   if(old && navigator.storage?.getDirectory){
     try{const root=await navigator.storage.getDirectory();
@@ -93,7 +119,7 @@ $('scan').addEventListener('click',async()=>{
 });
 $('cancel').addEventListener('click',()=>void clear('已取消並清除本次索引與暫存，可重新選檔掃描。'));
 $('reset').addEventListener('click',()=>{if(!busy)void clear('已清除清單與本機暫存。',true);});
-$('search').addEventListener('input',display);
+for(const id of ['search','series','first','last','date-field','from','to'])$(id).addEventListener('input',()=>{ $('preview').hidden=true;display(); });
 $('select-visible').addEventListener('click',()=>{if(busy)return;for(const x of matches())selected.add(x.key);display();});
 $('deselect').addEventListener('click',()=>{if(busy)return;selected.clear();display();});
 $('download').addEventListener('click',async()=>{
