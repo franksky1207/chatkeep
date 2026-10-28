@@ -12,8 +12,8 @@
 <main class="wrap" id="main" tabindex="-1">
 <header class="site-header"><p class="eyebrow">CHATKEEP</p><h1>ChatKeep｜對話收藏</h1><p class="lead">將 ChatGPT 公開分享連結，或官方備份中指定的對話，收藏成可編輯的 Word。</p></header>
 <section class="service-notice" aria-labelledby="service-title">
-<h2 id="service-title">轉換服務</h2><p id="service-status" role="status" aria-live="polite">開發預覽版：尚未設定新版轉換服務。你仍可在本機搜尋備份、下載原始 JSON。</p>
-<p class="note">新版 Render 已由管理員部署，正式跨站轉換仍在驗證中；若出現連線或 CORS 錯誤，請稍後重試或回報。本機備份索引、搜尋與原始 JSON 下載仍可使用。</p>
+<h2 id="service-title">轉換服務</h2><p id="service-status" role="status" aria-live="polite">轉換服務狀態將依實際回應顯示；即使無法連線，仍可在本機搜尋備份、下載原始 JSON。</p>
+<p class="note">轉換服務已啟用；分享連結轉 Word 已有實際成功案例。官方備份及超長對話仍須逐項驗收；若遇到連線或格式問題，請查看錯誤說明。</p>
 <details id="service-settings"><summary>開發與測試設定</summary><div class="details-body">
 <label for="api-base">轉換服務網址（開發／測試）</label><input id="api-base" type="url" placeholder="http://localhost:8000" autocomplete="off" spellcheck="false" aria-describedby="api-help">
 <p id="api-help" class="note">僅填入你信任的本機或核准測試服務。私人內容會送往此網址。只接受 HTTPS，或本機 localhost 的 HTTP。設定只保留在本分頁，不會自動測試連線。</p>
@@ -65,11 +65,11 @@
 <details id="raw-download"><summary>另存原始對話 JSON（不是 Word）</summary><div class="details-body"><p>保留已選對話物件的原始 UTF-8 位元組，包含可能的其他分支與非可見記錄。此操作只擷取原始資料，不執行 Word 轉換，也不傳送至 Render。</p><button id="download" type="button" class="secondary">下載選取的原始 JSON</button></div></details><p id="export-status" role="status" aria-live="polite"></p></section>
 </section>
 <section class="panel" id="conversion-panel" aria-labelledby="conversion-title"><h2 id="conversion-title" tabindex="-1">轉換進度與下載</h2><p>每段對話依序處理，通過完整性驗證後才提供下載。大型對話會顯示目前批次；Render 轉換中沒有可用的內部百分比。</p>
-<div class="actions"><button id="cancel-conversion" type="button" class="secondary" disabled>取消轉換佇列</button><button id="continue-conversion" type="button" class="secondary" disabled>繼續佇列</button><button id="clear-conversion" type="button" class="quiet">清除全部結果</button></div>
+<div class="actions"><button id="cancel-conversion" type="button" class="secondary" disabled>取消轉換佇列</button><button id="continue-conversion" type="button" class="secondary" disabled>繼續佇列</button><button id="clear-conversion" type="button" class="quiet">清除全部轉換紀錄與暫存</button></div>
 <p id="local-operation" class="note" role="status" aria-live="polite" hidden></p><p id="queue-summary" class="metrics"></p><p id="conversion-status" role="status" aria-live="polite" aria-atomic="true">尚未開始轉換。</p>
 <div id="conversion-results" role="list" aria-label="對話轉換工作"></div>
 <nav class="pagination" aria-label="轉換佇列分頁" id="queue-pagination" hidden><button id="queue-prev" class="secondary" type="button">上一頁工作</button><span id="queue-page"></span><button id="queue-next" class="secondary" type="button">下一頁工作</button><button id="queue-current" class="quiet" type="button">查看處理中對話</button></nav>
-<details><summary>容量、下載與取消說明</summary><div class="details-body"><p>成果暫存最多 32 MB。容量不足會暫停，請逐段下載，確認瀏覽器已保存後再「釋放成果」，即可繼續下一段。網站無法偵測檔案是否真的保存至磁碟，也不會自動將全部對話合併下載。</p><p>每段選取來源最多 16 MB、每次上傳 2 MB、最多 16 批／16 卷及 16 MB 最終成果。大型單則訊息可能超限，不能任意裁切。</p><p>取消會停止後續批次與目前連線，清除未完成的轉換資料，已完成成果保留。瀏覽器取消不保證同步 Render 子程序立即停止，仍受既有最長 45 秒期限控制。</p></div></details></section>
-<footer>ChatKeep · 本機搜尋備份，選取後才傳送轉換 · 開發預覽，尚未正式發布</footer>
+<details><summary>容量、下載與取消說明</summary><div class="details-body"><p>成果暫存最多 32 MB。容量不足會暫停，請逐段下載，確認瀏覽器已保存後再「清除暫存 Word」，即可繼續下一段。清除暫存 Word 只清除本頁尚保留的 DOCX／ZIP，不影響已下載的檔案，完整性報告仍保留。網站無法偵測檔案是否真的保存至磁碟，也不會自動將全部對話合併下載。</p><p>每段選取來源最多 16 MB、每次上傳 2 MB、最多 16 批／16 卷及 16 MB 最終成果。大型單則訊息可能超限，不能任意裁切。</p><p>取消會停止後續批次與目前連線，清除未完成的轉換資料，已完成成果保留。瀏覽器取消不保證同步 Render 子程序立即停止，仍受既有最長 45 秒期限控制。</p></div></details></section>
+<footer>ChatKeep · 本機搜尋備份，選取後才傳送轉換 · 分享連結已完成正式連線測試；備份功能持續驗收中</footer>
 </main><script type="module" src="local-backup/app.mjs"></script>
 </body></html>
