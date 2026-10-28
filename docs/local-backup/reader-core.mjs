@@ -34,10 +34,13 @@ export function parseConversation(source){
       }
     }else if(content!=null){nonText++;parts.push('〔尚未支援的訊息結構〕');warnings.push('訊息 '+key+' 的結構尚未支援');}
     const text=parts.join('\n');
+    // Generated unsupported-content labels are diagnostics, not visible conversation.
+    if(/^\\s*[〔\\[{（(]?\\s*(?:thoughts|reasoning_recap|reasoning_recap_summary|model_editable_context|analysis)\\s*[:：]/i.test(text)){hidden++;continue;}
+    if(/^\\s*〔(?:thoughts|reasoning_recap|model_editable_context)[：:][^\\n]*〕\\s*$/i.test(text)){hidden++;continue;}
     // Do not surface internal-only or placeholder-only messages as conversation.
     if(/^\s*[〔\[{（(]?\s*(?:thoughts|reasoning_recap|reasoning_recap_summary|model_editable_context|analysis)\s*[:：]/i.test(text)) {hidden++;continue;}
     if(!text.trim())continue;
-    messages.push({id:key,role:role==='user'?'user':role==='assistant'?'assistant':'other',text});
+    messages.push({id:key,role:role==='user'?'user':role==='assistant'?'assistant':'other',text:text.replace(/(?:memcite|filecite|cite)/g,'')});
   }
   return {title:typeof source.title==='string'?source.title:'未命名對話',messages,summary:{rawNodes:keys.length,pathNodes:path.length,offBranch:keys.length-path.length,hidden,nonText,warnings}};
 }
