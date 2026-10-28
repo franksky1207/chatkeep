@@ -259,7 +259,7 @@ $('read-share').addEventListener('click',async()=>{
  if(button.disabled)return;
  let url,base;
  try{
-   url=shareURL($('share-url').value);base=apiBase($('api-base').value);
+   url=shareURL($('share-url').value);base=apiBase('https://chatkeep-v12-test.onrender.com');
  }catch(e){notice.textContent='請輸入有效的 ChatGPT 公開分享連結。';return;}
  button.disabled=true;notice.textContent='正在取得公開分享對話，此操作不會生成 Word。';
  const ctrl=new AbortController(),watch=setTimeout(()=>ctrl.abort(),55000);
