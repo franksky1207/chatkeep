@@ -1,4 +1,5 @@
 import {zipFiles,safeHtmlName} from './reader-export.mjs';
+import {shareURL,apiBase} from './conversion.mjs';
 import {mountReader} from './reader-ui.mjs';
 import {safeFilename} from './conversion.mjs';
 import {mountModes} from './site-ui.mjs';
@@ -252,6 +253,28 @@ $('download-html-selected').addEventListener('click',async()=>{
   $('export-status').textContent=single?'已啟動 '+files[0].name+' 下載，請確認檔案已保存。':'已啟動 '+items.length+' 段、'+files.length+' 卷 HTML 的 ZIP 下載，請確認檔案已保存。';
  }catch(e){$('export-status').textContent='批次 HTML 未完成：'+e.message+'。未宣稱全部成功。';}
  finally{busy=false;display();}
+});
+$('read-share').addEventListener('click',async()=>{
+ const button=$('read-share'),notice=$('share-read-status');
+ if(button.disabled)return;
+ let url,base;
+ try{
+   url=shareURL($('share-url').value);base=apiBase($('api-base').value);
+ }catch(e){notice.textContent='請輸入有效的 ChatGPT 公開分享連結。';return;}
+ button.disabled=true;notice.textContent='正在取得公開分享對話，此操作不會生成 Word。';
+ const ctrl=new AbortController(),watch=setTimeout(()=>ctrl.abort(),55000);
+ try{
+   const response=await fetch(base+'/api/share-reader-v1',{
+     method:'POST',headers:{'Content-Type':'application/json'},
+     body:JSON.stringify({url}),credentials:'omit',cache:'no-store',signal:ctrl.signal
+   });
+   const packet=await response.json();
+   if(!response.ok||!packet.ok)throw Error(packet.error?.message||'分享連結閱讀版無法取得內容');
+   if(!packet.data||!Array.isArray(packet.data.messages))throw Error('服務回傳格式不正確');
+   notice.textContent='已取得公開分享正文，正在本機開啟閱讀版。';
+   await reader.openShared(packet.data);
+ }catch(e){notice.textContent='無法開啟 HTML 閱讀版：'+(e.name==='AbortError'?'讀取逾時':e.message)+'。此功能需要 Render 部署新版 API，正式服務尚未更新時會顯示錯誤。';}
+ finally{clearTimeout(watch);button.disabled=false;}
 });
 const conversion=mountConversion({
  getSelected:()=>index.filter(x=>selected.has(x.key)),
