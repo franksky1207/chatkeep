@@ -27,7 +27,7 @@ function makeBody(text){
   const lines=text.split(/\n/);let code=null,list=null;
   for(let i=0;i<lines.length;i++){
     const line=lines[i];
-    if(!line.trim() && (!i || !lines[i-1].trim() || i===lines.length-1))continue;
+    if(!line.trim())continue;
     if(/^\s*```/.test(line)){
       list=null;
       if(code){body.append(code);code=null;}else code=document.createElement('pre');
