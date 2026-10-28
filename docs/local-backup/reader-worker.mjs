@@ -1,4 +1,4 @@
-import {parseConversation,totalWords,findMessages} from './reader-core.mjs';
+import {parseConversation,totalWords,findMessages,cleanDisplayText} from './reader-core.mjs';
 import {splitMessages,splitHtmlVolumes,htmlDocument,richClipboard} from './reader-export.mjs';
 let active=null,copyChunks=null;
 self.onmessage=async({data})=>{
@@ -12,6 +12,20 @@ self.onmessage=async({data})=>{
       const json=JSON.parse(await data.blob.text());
       active=parseConversation(json);copyChunks=null;
       postMessage({type:'opened',request,title:active.title,count:active.messages.length,words:totalWords(active.messages),summary:active.summary});
+    }else if(type==='openShared'){
+      const source=data.source;
+      if(!source||!Array.isArray(source.messages)||source.messages.length>20000)throw Error('分享內容無效或訊息數超過安全上限');
+      const messages=source.messages.map((m,index)=>({
+        id:'share-'+index,role:m.role==='user'?'user':'assistant',
+        text:cleanDisplayText(String(m.text||''))
+      })).filter(m=>m.text.trim());
+      if(messages.length!==source.messages.length)throw Error('分享正文存在空白或無法還原的訊息，請檢查來源');
+      active={title:String(source.title||'公開分享對話'),messages,
+        summary:{rawNodes:messages.length,pathNodes:messages.length,offBranch:0,hidden:0,
+        nonText:source.report?.issues||0,warnings:source.report?.warnings||[]}};
+      copyChunks=null;
+      postMessage({type:'opened',request,title:active.title,count:messages.length,
+        words:totalWords(messages),summary:active.summary});
     }else if(type==='copyPlan'){
       if(!active)throw Error('請先開啟對話');
       const first=data.first==null?1:Number(data.first),last=data.last==null?active.messages.length:Number(data.last);
