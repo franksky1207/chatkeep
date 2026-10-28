@@ -149,7 +149,7 @@ class UISecurityTests(unittest.TestCase):
         expect(details).to_have_attribute('open','');expect(card.get_by_role('button',name='下載 DOCX')).to_be_focused()
         self.assertIsNone(page.evaluate('window.PRIVATE_XSS'))
         for width in [320,390,768,844,1280]:page.set_viewport_size({'width':width,'height':900});self.assert_layout(page)
-        card.get_by_role('button',name='釋放成果').click();expect(card).to_contain_text('成果已從本頁記憶體釋放');expect(card.locator('dl').first).to_contain_text('DOCX')
+        card.get_by_role('button',name='清除暫存 Word（不影響已下載檔案）').click();expect(card).to_contain_text('成果已從本頁記憶體釋放');expect(card.locator('dl').first).to_contain_text('DOCX')
         page.locator('#queue-next').click();expect(page.locator('#queue-page')).to_contain_text('第 2 / 7 頁');expect(page.locator('.job-card')).to_have_count(20)
         page.locator('#cancel-conversion').click();expect(page.locator('#queue-summary')).to_contain_text('已取消')
         page.locator('#clear-conversion').click();expect(page.locator('#conversion-results')).to_be_empty()
