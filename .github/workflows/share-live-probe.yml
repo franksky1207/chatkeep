@@ -45,8 +45,34 @@ jobs:
               data=result.get('data') or {}
               print('PROBE_MESSAGE_COUNT',len(data.get('messages') or []))
               print('PROBE_REPORT_STATUS',(data.get('report') or {}).get('status'))
+              print('PROBE_ISSUE_COUNT',(data.get('report') or {}).get('issues'))
+              print('PROBE_WARNING_COUNT',len((data.get('report') or {}).get('warnings') or []))
           else:
               error=result.get('error') or {}
               print('PROBE_ERROR_CODE',error.get('code'))
               print('PROBE_ERROR_STAGE',error.get('stage'))
+          # Word endpoint uses the identical share URL and worker parser.
+          word_request=urllib.request.Request('https://chatkeep-v12-test.onrender.com/api/convert-v2',
+              data=body,headers={'Content-Type':'application/json'},method='POST')
+          try:
+              with urllib.request.urlopen(word_request,timeout=55) as word_response:
+                  word_status=word_response.status
+                  word_raw=word_response.read(24000000)
+          except urllib.error.HTTPError as exc:
+              word_status=exc.code
+              word_raw=exc.read(1000000)
+          except Exception as exc:
+              print('WORD_PROBE_NETWORK_EXCEPTION',type(exc).__name__)
+              raise SystemExit(0)
+          print('WORD_PROBE_HTTP',word_status)
+          try:
+              word_result=json.loads(word_raw)
+          except (ValueError,UnicodeError):
+              print('WORD_PROBE_NON_JSON')
+              raise SystemExit(0)
+          print('WORD_PROBE_OK',bool(word_result.get('ok')))
+          if word_result.get('ok'):
+              print('WORD_PROBE_DOCUMENT_PRESENT',bool(word_result.get('data') or word_result.get('document')))
+          else:
+              print('WORD_PROBE_ERROR_CODE',(word_result.get('error') or {}).get('code'))
           PY
