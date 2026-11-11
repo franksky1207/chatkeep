@@ -9,6 +9,10 @@ on:
       - 'tests/reader_core.test.mjs'
       - 'tests/reader_export.test.mjs'
       - 'tests/test_share_reader.py'
+      - 'tests/test_share_archive.py'
+      - 'share_archive.py'
+      - 'server.py'
+      - 'json_api.py'
       - 'official_worker.py'
       - 'chatkeep.py'
       - '.github/workflows/reader-v12-checks.yml'
@@ -28,7 +32,8 @@ jobs:
         run: |
           python3 -m pip install --break-system-packages lxml python-docx
           python3 -m unittest discover -s tests -p test_share_reader.py
-          python3 -m py_compile server.py json_api.py official_worker.py
+          python3 -m unittest discover -s tests -p test_share_archive.py
+          python3 -m py_compile server.py json_api.py official_worker.py share_archive.py
           node --check docs/local-backup/app.mjs
           node --check docs/local-backup/reader-core.mjs
           node --check docs/local-backup/reader-worker.mjs
