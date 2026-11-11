@@ -8,7 +8,7 @@ class ShareReaderTests(unittest.TestCase):
         from official_worker import classify_share_failure
         from chatkeep import ExtractionError
         cases = {
-            '分享頁回應 HTTP 403；可能已失效或限制匿名存取': 'SOURCE_HTTP_REJECTED',
+            '分享頁回應 HTTP 403；可能已失效或限制匿名存取': 'SOURCE_HTTP_403',
             'No ChatGPT stream found': 'SHARE_FORMAT_UNSUPPORTED',
             'Unsupported turbo-stream tag: Q': 'SHARE_FORMAT_UNSUPPORTED',
             'Active branch and linear conversation disagree': 'CONVERSATION_STRUCTURE_FAILED',
