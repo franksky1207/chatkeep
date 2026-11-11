@@ -23,12 +23,21 @@ jobs:
           try:
               with urllib.request.urlopen(request,timeout=55) as response:
                   status=response.status
-                  result=json.load(response)
+                  content_type=response.headers.get('Content-Type','')
+                  raw=response.read(1000000)
           except urllib.error.HTTPError as exc:
               status=exc.code
-              result=json.load(exc)
+              content_type=exc.headers.get('Content-Type','')
+              raw=exc.read(1000000)
           except Exception as exc:
               print('PROBE_NETWORK_EXCEPTION',type(exc).__name__)
+              raise SystemExit(0)
+          print('PROBE_CONTENT_TYPE',content_type.split(';')[0])
+          print('PROBE_RESPONSE_BYTES',len(raw))
+          try:
+              result=json.loads(raw)
+          except (ValueError,UnicodeError):
+              print('PROBE_NON_JSON_RESPONSE')
               raise SystemExit(0)
           print('PROBE_HTTP',status)
           print('PROBE_OK',bool(result.get('ok')))
