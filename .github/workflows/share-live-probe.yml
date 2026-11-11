@@ -1,4 +1,5 @@
 name: ChatKeep share live probe (test service only)
+# Recheck newest deployed image-reference Word fix against test Render.
 on:
   push:
     branches: ['feature/v1.2.0-local-html-reader']
