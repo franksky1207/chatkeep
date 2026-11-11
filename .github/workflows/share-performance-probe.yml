@@ -1,0 +1,39 @@
+name: ChatKeep share Word performance (one-shot)
+on:
+  push:
+    branches: ['feature/v1.2.0-local-html-reader']
+    paths: ['.github/workflows/share-performance-probe.yml']
+permissions:
+  contents: read
+jobs:
+  profile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Word dependencies
+        run: python3 -m pip install --break-system-packages lxml python-docx
+      - name: Time fetch, validation, and full rich Word conversion without emitting text
+        run: |
+          python3 - <<'PY'
+          import time, resource
+          from chatkeep import extract_url
+          from conversation_export import export_conversation
+          url='https://chatgpt.com/share/6af41141-2ee4-83ec-a46c-a62ebd9439d6'
+          start=time.monotonic()
+          model=extract_url(url)
+          print('PROFILE_FETCH_SECONDS',round(time.monotonic()-start,2),flush=True)
+          print('PROFILE_MESSAGES',len(model['messages']),flush=True)
+          cpu_start=resource.getrusage(resource.RUSAGE_SELF)
+          t=time.monotonic()
+          try:
+              result=export_conversation(model,'share_link',None)
+              end=resource.getrusage(resource.RUSAGE_SELF)
+              print('PROFILE_WORD_SECONDS',round(time.monotonic()-t,2),flush=True)
+              print('PROFILE_WORD_CPU_SECONDS',round(end.ru_utime+end.ru_stime-cpu_start.ru_utime-cpu_start.ru_stime,2),flush=True)
+              print('PROFILE_WORD_TYPE',result['artifact_type'],flush=True)
+              print('PROFILE_WORD_BYTES',len(result['data']),flush=True)
+              print('PROFILE_WORD_VOLUMES',result['report']['docx_volume_count'],flush=True)
+          except Exception as exc:
+              print('PROFILE_WORD_ERROR',type(exc).__name__,getattr(exc,'code','unknown'),flush=True)
+          PY
