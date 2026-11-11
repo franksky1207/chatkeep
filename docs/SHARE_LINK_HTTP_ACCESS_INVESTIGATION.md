@@ -15,6 +15,15 @@
 - 開源參考：https://github.com/vl3c/ChatPeek 、https://github.com/pencil311/chat-share-reader
   - 解析 React Flight/turbo-stream 的方式可交叉參考；**不代表能解決來源 HTTP 拒絕**。
 
+## 實測補充（2026-11-11）
+- 最新測試版本 `b314ca7` 已部署至 `chatkeep-v12-test`，Render 狀態 `live`。
+- 同一個公開分享連結，iPhone Safari 可讀，測試 HTML 閱讀版顯示 `SOURCE_HTTP_503`。
+- Render 服務紀錄：2026-11-11 07:41:22 UTC 收到 `OPTIONS /api/share-reader-v1`，回 204；07:41:27 UTC 收到 `POST /api/share-reader-v1`，回 502。這個 502 是 ChatKeep 對來源 `503` 的轉譯，不是 Render 自己 503。
+- 尚無公開的上游回應標頭、回應正文或來源服務內部紀錄，**無法證明是否為 Cloudflare、OpenAI、負載或防護措施造成**。
+- Cloudflare 503 排查文件：https://developers.cloudflare.com/support/troubleshooting/http-status-codes/cloudflare-5xx-errors/error-503/；503 必須區分 CDN 與 origin。
+- 在使用者瀏覽器能開啟、雲端單次讀取回 503 的情況下，不應聲稱修正 parser 可解決問題；避免繞過存取限制。
+- 已於原有測試分支修正 HTML 閱讀器遇到 503 時誤導的「Render 尚未更新新版 API」訊息，尚未併入正式 main。
+
 ## 根因優先順序
 1. 先從測試版取得 HTTP 狀態（如 `SOURCE_HTTP_403` / `SOURCE_HTTP_429` / `SOURCE_HTTP_404`）。
 2. 若 403/429：視為來源服務存取限制，**不要以代理跳板、登入 Cookie、反爬繞過、頻繁重試嘗試強行存取**。保留既有正常轉換，提示官方 JSON 備份替代路線。
