@@ -88,6 +88,18 @@ def bubble(document, speaker, content, timestamp=""):
     celltext(active, (speaker + (" · " + timestamp if timestamp else "") + "\n" + content))
     table.cell(0, 0 if mine else 1).text = ""
 
+def cached_style(document, name):
+    """Reuse the same document-part style instead of repeated name scans."""
+    part = document.part
+    cache = getattr(part, '_chatkeep_style_cache', None)
+    if cache is None:
+        cache = {}
+        part._chatkeep_style_cache = cache
+    if name not in cache:
+        cache[name] = part.styles[name]
+    return cache[name]
+
+
 def markdown(document, value):
     lines = value.split("\n")
     i = 0
@@ -102,7 +114,7 @@ def markdown(document, value):
             continue
         heading = HEAD.match(line)
         if heading:
-            inline(document.add_paragraph(style="Heading %d" % min(len(heading.group(1))+2, 6)), heading.group(2))
+            inline(document.add_paragraph(style=cached_style(document, "Heading %d" % min(len(heading.group(1))+2, 6))), heading.group(2))
             i += 1
             continue
         if line.startswith(">"):
@@ -120,7 +132,7 @@ def markdown(document, value):
             if width <= CELL_LIMIT:
                 observe(elements=6 * len(matrix) * width, cells=len(matrix) * width)
                 table = document.add_table(rows=len(matrix), cols=width)
-                table.style = "Table Grid"
+                table.style = cached_style(document, "Table Grid")
                 for r, (row, cols) in enumerate(zip(table.rows, matrix)):
                     for cell, val in zip(row.cells, cols):
                         celltext(cell, val)
@@ -133,7 +145,7 @@ def markdown(document, value):
         if bullet:
             numbered = bullet.group(2)[0].isdigit()
             try:
-                paragraph = document.add_paragraph(style="List Number" if numbered else "List Bullet")
+                paragraph = document.add_paragraph(style=cached_style(document, "List Number" if numbered else "List Bullet"))
                 inline(paragraph, (bullet.group(2) + ' ' if numbered else '') + bullet.group(3))
                 if numbered:
                     # Retain explicit source numbering (e.g. 5., 9.) rather than
