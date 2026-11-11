@@ -85,7 +85,7 @@ def result(body, mode='official'):
         from chatkeep import extract_url, validate_url
         payload = json.loads(body)
         url = payload['url']; validate_url(url)
-        model = extract_url(url)
+        model = extract_url(url, prefer_json=True)
         report = None
         source = 'share_link'
     else:
