@@ -281,9 +281,56 @@ $('read-share').addEventListener('click',async()=>{
    if(!packet.data||!Array.isArray(packet.data.messages))throw Error('服務回傳格式不正確');
    notice.textContent='已取得公開分享正文，正在本機開啟閱讀版。';
    await reader.openShared(packet.data);
- }catch(e){notice.textContent='無法開啟 HTML 閱讀版：'+(e.name==='AbortError'?'讀取逾時，請稍後重試。':e.message);}
+ }catch(e){notice.textContent='無法開啟 HTML 閱讀版：'+(e.name==='AbortError'?'讀取逾時，請稍後重試。':e.message);if(e.message.includes('SOURCE_HTTP_503'))$('share-archive-help').open=true;}
  finally{clearTimeout(watch);button.disabled=false;}
 });
+// Safari archive fallback: user supplies the page file explicitly.
+// No remote ChatGPT fetch and no storage of the uploaded bytes.
+async function archiveAction(kind){
+ const input=$('share-archive'),status=$('archive-status'),file=input.files?.[0];
+ if(!file){status.textContent='請先選擇 Safari 儲存的 .webarchive 檔案。';return;}
+ if(!/\.(webarchive|html|htm)$/i.test(file.name)||file.size<1||file.size>12_000_000){
+   status.textContent='檔案格式或大小不符：只接受 12 MB 以下的 .webarchive 或 .html。';return;
+ }
+ const buttons=[$('read-archive'),$('word-archive')];
+ buttons.forEach(b=>b.disabled=true);
+ status.textContent='正在讀取封存檔並驗證完整性……';
+ const ctrl=new AbortController(),watch=setTimeout(()=>ctrl.abort(),80000);
+ try{
+   const encoded=await new Promise((resolve,reject)=>{
+     const fr=new FileReader();fr.onerror=()=>reject(Error('無法讀取檔案'));
+     fr.onload=()=>resolve(String(fr.result).split(',')[1]);
+     fr.readAsDataURL(file);
+   });
+   const base=apiBase('https://chatkeep-v12-test.onrender.com');
+   const response=await fetch(base+(kind==='reader'?'/api/archive-reader-v1':'/api/archive-word-v1'),{
+     method:'POST',headers:{'Content-Type':'application/json'},
+     body:JSON.stringify({filename:file.name,data:encoded}),
+     credentials:'omit',cache:'no-store',signal:ctrl.signal,redirect:'error'
+   });
+   const packet=await response.json();
+   if(!response.ok||!packet.ok)throw Error((packet.error?.message||'封存檔轉換失敗')+(packet.error?.stage?'（'+packet.error.stage+'）':''));
+   if(kind==='reader'){
+     if(!Array.isArray(packet.data?.messages)||!packet.data.messages.length)throw Error('未取得有效正文');
+     status.textContent='已解析封存檔，正在開啟 HTML 閱讀版。';
+     await reader.openShared(packet.data);
+   }else{
+     if(!['docx','zip'].includes(packet.artifact_type)||typeof packet.document!=='string')throw Error('Word 回應格式不正確');
+     const raw=atob(packet.document),bytes=new Uint8Array(raw.length);
+     for(let i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);
+     const blob=new Blob([bytes],{type:packet.mime_type||'application/octet-stream'});
+     const url=URL.createObjectURL(blob),link=document.createElement('a');
+     link.href=url;link.download=safeFilename(packet.filename||'公開分享對話',packet.artifact_type);
+     document.body.append(link);link.click();link.remove();
+     setTimeout(()=>URL.revokeObjectURL(url),60000);
+     status.textContent='已啟動 Word 下載，請確認檔案已保存；若為多卷會下載 ZIP。';
+   }
+ }catch(e){
+   status.textContent='封存檔無法完成轉換：'+(e.name==='AbortError'?'處理逾時，請稍後重試':e.message)+'。未產生不完整文件。';
+ }finally{clearTimeout(watch);buttons.forEach(b=>b.disabled=false);}
+}
+$('read-archive').addEventListener('click',()=>void archiveAction('reader'));
+$('word-archive').addEventListener('click',()=>void archiveAction('word'));
 const conversion=mountConversion({
  getSelected:()=>index.filter(x=>selected.has(x.key)),
  extract:(item,signal)=>{if(item.end-item.start>16_000_000){const e=Error('SELECTED_SOURCE_LIMIT');e.code=e.message;throw e;}return extract(item,signal);},
