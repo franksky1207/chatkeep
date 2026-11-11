@@ -259,7 +259,7 @@ $('read-share').addEventListener('click',async()=>{
  if(button.disabled)return;
  let url,base;
  try{
-   url=shareURL($('share-url').value);base=apiBase($('api-base').value);
+   url=shareURL($('share-url').value);base=apiBase('https://chatkeep-v12-test.onrender.com');
  }catch(e){notice.textContent='請輸入有效的 ChatGPT 公開分享連結。';return;}
  button.disabled=true;notice.textContent='正在取得公開分享對話，此操作不會生成 Word。';
  const ctrl=new AbortController(),watch=setTimeout(()=>ctrl.abort(),55000);
@@ -269,7 +269,7 @@ $('read-share').addEventListener('click',async()=>{
      body:JSON.stringify({url}),credentials:'omit',cache:'no-store',signal:ctrl.signal
    });
    const packet=await response.json();
-   if(!response.ok||!packet.ok)throw Error(packet.error?.message||'分享連結閱讀版無法取得內容');
+   if(!response.ok||!packet.ok)throw Error((packet.error?.message||'分享連結閱讀版無法取得內容')+(packet.error?.stage?'（診斷代碼：'+packet.error.stage+'）':''));
    if(!packet.data||!Array.isArray(packet.data.messages))throw Error('服務回傳格式不正確');
    notice.textContent='已取得公開分享正文，正在本機開啟閱讀版。';
    await reader.openShared(packet.data);
