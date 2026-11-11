@@ -8,6 +8,24 @@ from chatkeep import ExtractionError
 from conversation_export import export_conversation, envelope
 
 
+def classify_share_failure(exc):
+    """Return only fixed diagnostic codes; never expose source HTML or share URLs."""
+    detail = str(exc)
+    import re
+    match = re.fullmatch(r'分享頁回應 HTTP ([1-5][0-9][0-9])；可能已失效或限制匿名存取', detail)
+    if match:
+        return 'SOURCE_HTTP_' + match.group(1)
+    if 'No ChatGPT stream found' in detail or 'Unsupported turbo-stream tag' in detail:
+        return 'SHARE_FORMAT_UNSUPPORTED'
+    if 'active conversation branch' in detail or 'conversation disagree' in detail:
+        return 'CONVERSATION_STRUCTURE_FAILED'
+    if 'HTML exceeds permitted size' in detail or 'HTML 下載不完整' in detail:
+        return 'SOURCE_SIZE_OR_TRUNCATED'
+    if '擷取逾時' in detail:
+        return 'SOURCE_TIMEOUT'
+    return 'EXTRACTION_VALIDATION_FAILED'
+
+
 def result(body, mode='official'):
     if mode == 'share_reader':
         from chatkeep import extract_url, validate_url
@@ -60,8 +78,12 @@ def main():
         status, value = exc.status, {'ok': False, 'error': {'code': exc.code, 'message': str(exc)}}
     except ExportError as exc:
         status, value = 422, {'ok': False, 'error': {'code': exc.code, 'message': str(exc)}}
-    except ExtractionError:
-        status, value = 502, {'ok': False, 'error': {'code': 'EXTRACTION_FAILED', 'message': '無法取得可安全解析的公開分享對話。'}}
+    except ExtractionError as exc:
+        status, value = 502, {'ok': False, 'error': {
+            'code': 'EXTRACTION_FAILED',
+            'message': '無法取得可安全解析的公開分享對話。',
+            'stage': classify_share_failure(exc)
+        }}
     except MemoryError:
         status, value = 503, {'ok': False, 'error': {'code': 'RESOURCE_LIMIT', 'message': '轉換超過工作程序記憶體限制。'}}
     except Exception:

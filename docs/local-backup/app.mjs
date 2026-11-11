@@ -269,7 +269,7 @@ $('read-share').addEventListener('click',async()=>{
      body:JSON.stringify({url}),credentials:'omit',cache:'no-store',signal:ctrl.signal
    });
    const packet=await response.json();
-   if(!response.ok||!packet.ok)throw Error(packet.error?.message||'分享連結閱讀版無法取得內容');
+   if(!response.ok||!packet.ok)throw Error((packet.error?.message||'分享連結閱讀版無法取得內容')+(packet.error?.stage?'（'+packet.error.stage+'）':''));
    if(!packet.data||!Array.isArray(packet.data.messages))throw Error('服務回傳格式不正確');
    notice.textContent='已取得公開分享正文，正在本機開啟閱讀版。';
    await reader.openShared(packet.data);
