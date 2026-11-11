@@ -339,6 +339,35 @@ def _content(content):
     return "\n".join(texts), unsupported
 
 
+def _image_reference_text(content):
+    """Recognize public-share image pointers without fetching private assets.
+
+    Return visible text with an explicit image position marker, or None for
+    unknown multimodal shapes (which still fail strict Word export).
+    """
+    if not isinstance(content, dict) or content.get("content_type") != "multimodal_text":
+        return None
+    if set(content) != {"content_type", "parts"}:
+        return None
+    parts = content["parts"]
+    if not isinstance(parts, list) or not parts:
+        return None
+    lines, images = [], 0
+    for part in parts:
+        if isinstance(part, str):
+            lines.append(part)
+        elif (isinstance(part, dict) and part.get("content_type") == "image_asset_pointer"
+              and isinstance(part.get("asset_pointer"), str)
+              and part["asset_pointer"].startswith(("sediment://", "file-service://"))
+              and set(part) <= {"content_type", "asset_pointer", "height", "width",
+                                "size_bytes", "mime_type", "metadata"}):
+            images += 1
+            lines.append("〔圖片附件：公開分享來源未提供可直接嵌入 Word 的圖片檔〕")
+        else:
+            return None
+    return ("\n".join(lines), images) if images else None
+
+
 def normalize(conversation, source_url="", on_progress=None):
     nodes, total_nodes, branch_source = _branch(conversation)
     records, messages, issues = [], [], []
@@ -366,6 +395,14 @@ def normalize(conversation, source_url="", on_progress=None):
         role = author.get("role", message.get("role", "unknown")) if isinstance(author, dict) else "unknown"
         content = message.get("content", message.get("text", ""))
         text, unsupported = _content(content)
+        image_representation = _image_reference_text(content)
+        if image_representation:
+            text, image_count = image_representation
+            unsupported = []
+            export_content = {"content_type": "text", "parts": [text]}
+        else:
+            image_count = 0
+            export_content = content
         metadata = message.get("metadata") or {}
         if not isinstance(metadata, dict):
             raise ExtractionError("Invalid message metadata")
@@ -384,7 +421,7 @@ def normalize(conversation, source_url="", on_progress=None):
             category = "tool_call"
         elif role not in ("user", "assistant"):
             category = "unknown"
-        elif unsupported or content_type not in ("text", "code"):
+        elif unsupported or (content_type not in ("text", "code") and not image_representation):
             category = "non_text"
         elif text.strip():
             category = "visible"
@@ -396,13 +433,16 @@ def normalize(conversation, source_url="", on_progress=None):
         seen_ids.add(mid)
         if category in ("visible", "non_text") and message.get("status", "finished_successfully") != "finished_successfully":
             issues.append({"node_index": index, "message_id": mid, "reason": "unfinished_message"})
+        if image_count and category == "visible":
+            issues.append({"node_index": index, "message_id": mid,
+                           "reason": "image_reference_not_embedded", "count": image_count})
         if category in ("non_text", "unknown"):
             issues.append({"node_index": index, "message_id": mid, "reason": "unsupported_content",
                            "locations": unsupported, "content_type": content_type})
         record = {"node_id": node.get("id"), "parent": node.get("parent"), "category": category,
                   "message": {"id": mid, "role": role, "create_time": message.get("create_time"),
                               "update_time": message.get("update_time"), "author": author,
-                              "text": text, "content": content, "metadata": metadata,
+                              "text": text, "content": export_content, "metadata": metadata,
                               "channel": channel, "recipient": recipient, "status": message.get("status"),
                               "content_type": content_type,
                               "text_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest()}}
@@ -419,8 +459,12 @@ def normalize(conversation, source_url="", on_progress=None):
                 "閱讀版會轉換支援的 Markdown／介面元件；未知格式保留原文，圖片不以替代圖冒充。"]
     if branch_source == "linear_conversation_only":
         warnings.append("來源僅有線性訊息；無法獨立核對目前分支。")
+    image_count = sum(item.get("count", 0) for item in issues
+                      if item.get("reason") == "image_reference_not_embedded")
+    if image_count:
+        warnings.append("有 %d 張來源圖片未嵌入檔案，已以明確標記保留原位置；圖片並未轉入 Word。" % image_count)
     if issues:
-        warnings.append("有 %d 項缺漏或無法解析內容，請檢查完整性報告。" % len(issues))
+        warnings.append("有 %d 項需要注意的來源內容，請檢查完整性報告。" % len(issues))
     if not messages:
         raise ExtractionError("分享頁未包含可匯出的可見訊息")
     return {"schema_version": "1.0", "source_url": source_url,
@@ -452,8 +496,83 @@ def parse_html(html, url="", on_progress=None):
         raise ExtractionError("來源資料無法安全表示為標準 JSON") from exc
 
 
+def fetch_share_json(url, timeout=15, max_bytes=20_000_000):
+    """Read the public share snapshot from ChatGPT's same-host JSON path.
+
+    This is an undocumented upstream path, used only after an HTML 503.
+    No credentials, redirects, arbitrary destinations, or external endpoints.
+    """
+    validate_url(url)
+    share_id = url.rsplit("/", 1)[-1]
+    endpoint = "https://chatgpt.com/backend-api/share/" + share_id
+    class RejectRedirects(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            raise ExtractionError("分享 JSON 來源拒絕直接存取")
+    request = urllib.request.Request(endpoint, headers={
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+                      "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json", "Accept-Encoding": "identity"})
+    opener = urllib.request.build_opener(RejectRedirects)
+    if not urllib.request.getproxies().get("https"):
+        opener.add_handler(PublicHTTPSHandler())
+    try:
+        with opener.open(request, timeout=timeout) as response:
+            if response.headers.get_content_type() not in ("application/json", "text/json"):
+                raise ExtractionError("分享 JSON 來源回傳非 JSON 內容")
+            if response.headers.get("Content-Encoding", "identity") != "identity":
+                raise ExtractionError("分享 JSON 不支援壓縮回應")
+            length = response.headers.get("Content-Length")
+            if length is not None:
+                try:
+                    expected = int(length)
+                except ValueError as exc:
+                    raise ExtractionError("分享 JSON 宣告大小無效") from exc
+                if expected < 0 or expected > max_bytes:
+                    raise ExtractionError("分享 JSON 超過大小限制")
+            else:
+                expected = None
+            chunks, total = [], 0
+            while True:
+                chunk = response.read(min(65536, max_bytes + 1 - total))
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > max_bytes:
+                    raise ExtractionError("分享 JSON 超過大小限制")
+                chunks.append(chunk)
+            if expected is not None and total != expected:
+                raise ExtractionError("分享 JSON 下載不完整")
+        return json.loads(b"".join(chunks).decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        raise ExtractionError("分享 JSON 來源 HTTP %d" % exc.code) from exc
+    except (urllib.error.URLError, TimeoutError, socket.timeout, UnicodeError,
+            json.JSONDecodeError, http.client.IncompleteRead) as exc:
+        raise ExtractionError("分享 JSON 來源讀取失敗") from exc
+
+
 def extract_url(url, on_fetched=None, on_download_progress=None, on_parse_progress=None):
-    html = fetch_html(url, on_progress=on_download_progress)
+    try:
+        html = fetch_html(url, on_progress=on_download_progress)
+    except ExtractionError as exc:
+        if str(exc) != "分享頁回應 HTTP 503；可能已失效或限制匿名存取":
+            raise
+        snapshot = fetch_share_json(url)
+        if on_fetched:
+            on_fetched()
+        try:
+            conversation = find_conversation(snapshot)
+            result = normalize(conversation, url, on_progress=on_parse_progress)
+            json.dumps(result, ensure_ascii=False, allow_nan=False)
+        except (RecursionError, TypeError, ValueError) as parse_exc:
+            if isinstance(parse_exc, ExtractionError):
+                raise
+            raise ExtractionError("分享 JSON 結構無法安全解析") from parse_exc
+        result["provenance"] = {
+            "retrieved_at": datetime.now(timezone.utc).isoformat(),
+            "source": "public_share_json_after_html_503",
+            "verified_against_live_page": False
+        }
+        return result
     if on_fetched:
         on_fetched()
     result = parse_html(html, url, on_progress=on_parse_progress)

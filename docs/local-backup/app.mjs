@@ -269,11 +269,11 @@ $('read-share').addEventListener('click',async()=>{
      body:JSON.stringify({url}),credentials:'omit',cache:'no-store',signal:ctrl.signal
    });
    const packet=await response.json();
-   if(!response.ok||!packet.ok)throw Error(packet.error?.message||'分享連結閱讀版無法取得內容');
+   if(!response.ok||!packet.ok)throw Error(packet.error?.message||'無法取得公開分享連結內容，請稍後重試。');
    if(!packet.data||!Array.isArray(packet.data.messages))throw Error('服務回傳格式不正確');
    notice.textContent='已取得公開分享正文，正在本機開啟閱讀版。';
    await reader.openShared(packet.data);
- }catch(e){notice.textContent='無法開啟 HTML 閱讀版：'+(e.name==='AbortError'?'讀取逾時':e.message)+'。此功能需要 Render 部署新版 API，正式服務尚未更新時會顯示錯誤。';}
+ }catch(e){notice.textContent='無法開啟 HTML 閱讀版：'+(e.name==='AbortError'?'讀取逾時，請稍後再試。':e.message);}
  finally{clearTimeout(watch);button.disabled=false;}
 });
 const conversion=mountConversion({
