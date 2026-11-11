@@ -1,4 +1,5 @@
 name: ChatKeep share Word performance (one-shot)
+# Verify style-object caching preserves rich Word output.
 on:
   push:
     branches: ['feature/v1.2.0-local-html-reader']
