@@ -89,6 +89,14 @@ jobs:
               m=extract_url(os.environ['SHARE_URL'])
               print('SNAPSHOT_REASONS',dict(Counter(x['reason'] for x in m['report'].get('issues',[]))))
               print('SNAPSHOT_CONTENT_TYPES',dict(Counter((x.get('content_type'),x.get('category')) for x in m['messages'])))
+              for msg in m['messages']:
+                  if msg.get('content_type')!='multimodal_text': continue
+                  parts=msg.get('content',{}).get('parts',[])
+                  shapes=[{'type':('string' if isinstance(p,str) else p.get('content_type',p.get('type','unknown')) if isinstance(p,dict) else type(p).__name__),
+                           'keys':sorted(p.keys()) if isinstance(p,dict) else [],
+                           'text_chars':len(p) if isinstance(p,str) else len(p.get('text','')) if isinstance(p,dict) and isinstance(p.get('text'),str) else 0}
+                           for p in parts]
+                  print('MULTIMODAL_PARTS',shapes)
           except Exception as exc:
               print('SNAPSHOT_SOURCE_ERROR_CLASS',type(exc).__name__)
           PY
