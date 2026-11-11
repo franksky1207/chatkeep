@@ -29,6 +29,17 @@
 <p>僅適用於 ChatGPT 的<strong>公開分享連結</strong>。私人對話不能直接由網址擷取，請改用「JSON 檔轉 Word／HTML」模式。</p>
 <form id="share-form" novalidate><label for="share-url">ChatGPT 公開分享網址</label><input id="share-url" type="url" placeholder="https://chatgpt.com/share/…" autocomplete="off" spellcheck="false" aria-describedby="share-help share-error"><p id="share-help" class="note">格式範例：<span class="break">https://chatgpt.com/share/00000000-0000-0000-0000-000000000000</span></p><p id="share-error" class="error" role="alert"></p><button id="convert-share" type="submit">轉換 Word</button><button id="read-share" type="button" class="secondary">開啟 HTML 閱讀版</button><p id="share-read-status" role="status" aria-live="polite"></p></form>
 <p class="note">轉換可能需要一些時間；超長對話可能分卷下載。遇到問題時會直接顯示原因。</p>
+<details id="share-archive-help" class="details-body">
+<summary>分享連結讀取失敗？改用 iPhone Safari 網頁封存檔（免等伺服器擷取）</summary>
+<p>Safari 可正常開啟分享頁，但 Render 無法擷取時：在 Safari 開啟原分享頁 → 分享 → 選項 → <strong>網頁封存檔（Web Archive）</strong> → 儲存到「檔案」。再回到這裡選擇剛存的檔案。</p>
+<p><strong>僅支援原始 ChatGPT 分享頁的 .webarchive 或 .html</strong>，必須含完整內嵌對話資料；不接受 PDF、截圖或不完整文字。若無法驗證，會顯示錯誤，不會假裝轉換成功。</p>
+<label for="share-archive">選擇 Safari 網頁封存檔（上限 12 MB）</label>
+<input id="share-archive" type="file" accept=".webarchive,.html,.htm,application/x-webarchive,text/html">
+<div class="actions"><button id="read-archive" type="button" class="secondary">從封存檔開啟 HTML 閱讀版</button>
+<button id="word-archive" type="button">從封存檔轉換 Word</button></div>
+<p id="archive-status" role="status" aria-live="polite"></p>
+<p class="note">檔案會由你主動傳送到 Render 的記憶體進行解析或 Word 轉換，不會永久儲存；請只上傳願意處理的公開分享頁。</p>
+</details>
 </div></section>
 <section id="mode-backup" role="tabpanel" aria-labelledby="tab-backup">
 <div class="panel"><h2 id="backup-title">從 JSON 檔案找出想收藏的對話</h2><ol class="steps"><li>選擇備份並建立索引</li><li>搜尋、勾選對話</li><li>轉換、查看報告並下載</li></ol>
