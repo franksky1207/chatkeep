@@ -10,6 +10,7 @@ on:
       - 'tests/reader_export.test.mjs'
       - 'tests/test_share_reader.py'
       - 'tests/test_share_archive.py'
+      - 'tests/live_archive_smoke.py'
       - 'share_archive.py'
       - 'server.py'
       - 'json_api.py'
@@ -43,3 +44,6 @@ jobs:
           node tests/verify_export_zip.mjs
           python3 -c 'import zipfile; z=zipfile.ZipFile("/tmp/chatkeep-reader-zip-check.zip"); assert z.testzip() is None; assert len(z.namelist())==2; assert "你好" in z.read("第一段.html").decode("utf-8")'
           git diff --check
+      - name: Verify isolated Render archive reader and Word endpoints
+        timeout-minutes: 3
+        run: python3 tests/live_archive_smoke.py
