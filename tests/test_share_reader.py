@@ -4,6 +4,39 @@ from unittest.mock import patch
 from official_worker import result
 
 class ShareReaderTests(unittest.TestCase):
+    def test_image_reference_keeps_message_and_all_text_for_word(self):
+        from chatkeep import normalize
+        from conversation_export import export_conversation
+        source={'title':'圖片訊息','linear_conversation':[{
+            'id':'m1','message':{'id':'m1','author':{'role':'user'},
+            'content':{'content_type':'multimodal_text','parts':[
+                {'content_type':'image_asset_pointer','asset_pointer':'sediment://file_example',
+                 'width':320,'height':240,'size_bytes':100,'mime_type':'image/png','metadata':{}},
+                '這張圖怎麼看？']}}}]}
+        model=normalize(source)
+        self.assertEqual(len(model['messages']),1)
+        self.assertEqual(model['messages'][0]['category'],'visible')
+        self.assertIn('圖片附件',model['messages'][0]['text'])
+        self.assertIn('這張圖怎麼看？',model['messages'][0]['text'])
+        self.assertEqual(model['report']['issues'][0]['reason'],'image_reference_not_embedded')
+        artifact=export_conversation(model,'share_link')
+        self.assertEqual(artifact['artifact_type'],'docx')
+        self.assertTrue(artifact['data'].startswith(b'PK'))
+
+    def test_unknown_multimodal_part_still_rejected(self):
+        from chatkeep import normalize
+        from conversation_export import export_conversation
+        from word_export import ExportError
+        source={'title':'不支援','linear_conversation':[{
+            'id':'m1','message':{'id':'m1','author':{'role':'user'},
+            'content':{'content_type':'multimodal_text','parts':[
+                {'content_type':'unknown_type','value':'X'},'可見文字']}}}]}
+        model=normalize(source)
+        self.assertEqual(model['messages'][0]['category'],'non_text')
+        with self.assertRaises(ExportError):
+            export_conversation(model,'share_link')
+
+
     def test_html_503_uses_same_host_public_json_without_changing_output(self):
         from chatkeep import extract_url, ExtractionError
         url='https://chatgpt.com/share/00000000-0000-0000-0000-000000000000'
