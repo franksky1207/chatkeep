@@ -28,31 +28,55 @@ def classify_share_failure(exc):
     return 'EXTRACTION_VALIDATION_FAILED'
 
 
+def archive_model(body):
+    import base64
+    from share_archive import extract_archive
+    try:
+        payload = json.loads(body)
+        if not isinstance(payload, dict) or set(payload) != {'filename', 'data'}:
+            raise ValueError()
+        name, encoded = payload['filename'], payload['data']
+        if not isinstance(name, str) or len(name) > 150 or not isinstance(encoded, str):
+            raise ValueError()
+        data = base64.b64decode(encoded, validate=True)
+    except (ValueError, TypeError, KeyError) as exc:
+        raise ExtractionError('ARCHIVE_INPUT_INVALID') from exc
+    return extract_archive(data, name)
+
+
+def readable_share(model, source='public_share'):
+    messages = []
+    for item in model.get('messages', []):
+        if item.get('category') not in ('visible', 'non_text'):
+            continue
+        role = item.get('role')
+        if role not in ('user', 'assistant'):
+            continue
+        value = item.get('text')
+        if isinstance(value, str) and value.strip():
+            messages.append({'role': role, 'text': value})
+    if not messages:
+        raise ExtractionError('No readable messages')
+    return {'ok': True, 'data': {'title': model.get('title') or '公開分享對話',
+        'messages': messages, 'report': {'source': source,
+        'status': model.get('report', {}).get('status'),
+        'warnings': model.get('report', {}).get('warnings', []),
+        'issues': len(model.get('report', {}).get('issues', []))}}}
+
+
 def result(body, mode='official'):
+    if mode in ('archive_reader', 'archive_word'):
+        model = archive_model(body)
+        if mode == 'archive_reader':
+            return readable_share(model, 'user_uploaded_archive')
+        return envelope(export_conversation(model, 'share_link', None))
     if mode == 'share_reader':
         from chatkeep import extract_url, validate_url
         payload = json.loads(body)
         url = payload['url']
         validate_url(url)
         model = extract_url(url)
-        # Return only the published conversational text. No DOCX export.
-        messages = []
-        for item in model.get('messages', []):
-            if item.get('category') not in ('visible', 'non_text'):
-                continue
-            role = item.get('role')
-            if role not in ('user', 'assistant'):
-                continue
-            text = item.get('text')
-            if isinstance(text, str) and text.strip():
-                messages.append({'role': role, 'text': text})
-        if not messages:
-            raise ExtractionError('No readable messages')
-        return {'ok': True, 'data': {'title': model.get('title') or '公開分享對話',
-            'messages': messages, 'report': {'source': 'public_share',
-            'status': model.get('report', {}).get('status'),
-            'warnings': model.get('report', {}).get('warnings', []),
-            'issues': len(model.get('report', {}).get('issues', []))}}}
+        return readable_share(model)
     if mode == 'chunk':
         from chunk_transfer import convert_chunk
         return convert_chunk(body)
@@ -74,7 +98,7 @@ def main():
         resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
         resource.setrlimit(resource.RLIMIT_AS, (384 * 1024**2, 384 * 1024**2))
         resource.setrlimit(resource.RLIMIT_CPU, (30, 31))
-        value = result(sys.stdin.buffer.read(MAX_INPUT + 1), sys.argv[1] if len(sys.argv)>1 else 'official')
+        value = result(sys.stdin.buffer.read((17_000_000 if sys.argv[1:2] and sys.argv[1] in ('archive_reader', 'archive_word') else MAX_INPUT) + 1), sys.argv[1] if len(sys.argv)>1 else 'official')
         status = 200
     except OfficialError as exc:
         status, value = exc.status, {'ok': False, 'error': {'code': exc.code, 'message': str(exc)}}
