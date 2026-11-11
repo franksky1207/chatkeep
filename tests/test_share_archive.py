@@ -60,6 +60,29 @@ class ShareArchiveTests(unittest.TestCase):
         self.assertEqual(base64.b64decode(output['document']),b'zipdata')
         self.assertEqual(export.call_args.args[1],'share_link')
 
+    def test_real_parser_reader_and_word_end_to_end(self):
+        from test_chatkeep import Encoder
+        conv = {'loaderData': {'route': {'serverResponse': {'data': {
+            'title': '離線封存測試',
+            'linear_conversation': [
+                {'message': {'id': 'A', 'author': {'role': 'user'}, 'content': {'parts': ['第一句']}}},
+                {'message': {'id': 'B', 'author': {'role': 'assistant'}, 'content': {'parts': ['**第二句**']}}}
+            ]}}}}}
+        encoder=Encoder()
+        encoder.add(conv)
+        html='streamController.enqueue('+json.dumps(json.dumps(encoder.flat,ensure_ascii=False),ensure_ascii=False)+');'
+        body=json.dumps({'filename':'test.webarchive',
+            'data':base64.b64encode(archive(html=html.encode())).decode()}).encode()
+        reader=result(body,'archive_reader')
+        self.assertEqual([m['text'] for m in reader['data']['messages']],['第一句','**第二句**'])
+        word=result(body,'archive_word')
+        self.assertTrue(word['ok'])
+        self.assertIn(word['artifact_type'],('docx','zip'))
+        from zipfile import ZipFile
+        from io import BytesIO
+        with ZipFile(BytesIO(base64.b64decode(word['document']))) as z:
+            self.assertIsNone(z.testzip())
+
     def test_invalid_base64(self):
         with self.assertRaises(ExtractionError):
             result(b'{"filename":"a.webarchive","data":"%%%"}','archive_reader')
