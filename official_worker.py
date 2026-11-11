@@ -98,7 +98,8 @@ def main():
     try:
         resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
         resource.setrlimit(resource.RLIMIT_AS, (384 * 1024**2, 384 * 1024**2))
-        resource.setrlimit(resource.RLIMIT_CPU, (30, 31))
+        cpu_limit = 75 if sys.argv[1:2] == ['share'] else 30
+        resource.setrlimit(resource.RLIMIT_CPU, (cpu_limit, cpu_limit + 1))
         value = result(sys.stdin.buffer.read((17_000_000 if sys.argv[1:2] and sys.argv[1] in ('archive_reader', 'archive_word') else MAX_INPUT) + 1), sys.argv[1] if len(sys.argv)>1 else 'official')
         status = 200
     except OfficialError as exc:
