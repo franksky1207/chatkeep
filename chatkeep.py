@@ -452,8 +452,83 @@ def parse_html(html, url="", on_progress=None):
         raise ExtractionError("來源資料無法安全表示為標準 JSON") from exc
 
 
+def fetch_share_json(url, timeout=15, max_bytes=20_000_000):
+    """Read the public share snapshot from ChatGPT's same-host JSON path.
+
+    This is an undocumented upstream path, used only after an HTML 503.
+    No credentials, redirects, arbitrary destinations, or external endpoints.
+    """
+    validate_url(url)
+    share_id = url.rsplit("/", 1)[-1]
+    endpoint = "https://chatgpt.com/backend-api/share/" + share_id
+    class RejectRedirects(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            raise ExtractionError("分享 JSON 來源拒絕直接存取")
+    request = urllib.request.Request(endpoint, headers={
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+                      "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json", "Accept-Encoding": "identity"})
+    opener = urllib.request.build_opener(RejectRedirects)
+    if not urllib.request.getproxies().get("https"):
+        opener.add_handler(PublicHTTPSHandler())
+    try:
+        with opener.open(request, timeout=timeout) as response:
+            if response.headers.get_content_type() not in ("application/json", "text/json"):
+                raise ExtractionError("分享 JSON 來源回傳非 JSON 內容")
+            if response.headers.get("Content-Encoding", "identity") != "identity":
+                raise ExtractionError("分享 JSON 不支援壓縮回應")
+            length = response.headers.get("Content-Length")
+            if length is not None:
+                try:
+                    expected = int(length)
+                except ValueError as exc:
+                    raise ExtractionError("分享 JSON 宣告大小無效") from exc
+                if expected < 0 or expected > max_bytes:
+                    raise ExtractionError("分享 JSON 超過大小限制")
+            else:
+                expected = None
+            chunks, total = [], 0
+            while True:
+                chunk = response.read(min(65536, max_bytes + 1 - total))
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > max_bytes:
+                    raise ExtractionError("分享 JSON 超過大小限制")
+                chunks.append(chunk)
+            if expected is not None and total != expected:
+                raise ExtractionError("分享 JSON 下載不完整")
+        return json.loads(b"".join(chunks).decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        raise ExtractionError("分享 JSON 來源 HTTP %d" % exc.code) from exc
+    except (urllib.error.URLError, TimeoutError, socket.timeout, UnicodeError,
+            json.JSONDecodeError, http.client.IncompleteRead) as exc:
+        raise ExtractionError("分享 JSON 來源讀取失敗") from exc
+
+
 def extract_url(url, on_fetched=None, on_download_progress=None, on_parse_progress=None):
-    html = fetch_html(url, on_progress=on_download_progress)
+    try:
+        html = fetch_html(url, on_progress=on_download_progress)
+    except ExtractionError as exc:
+        if str(exc) != "分享頁回應 HTTP 503；可能已失效或限制匿名存取":
+            raise
+        snapshot = fetch_share_json(url)
+        if on_fetched:
+            on_fetched()
+        try:
+            conversation = find_conversation(snapshot)
+            result = normalize(conversation, url, on_progress=on_parse_progress)
+            json.dumps(result, ensure_ascii=False, allow_nan=False)
+        except (RecursionError, TypeError, ValueError) as parse_exc:
+            if isinstance(parse_exc, ExtractionError):
+                raise
+            raise ExtractionError("分享 JSON 結構無法安全解析") from parse_exc
+        result["provenance"] = {
+            "retrieved_at": datetime.now(timezone.utc).isoformat(),
+            "source": "public_share_json_after_html_503",
+            "verified_against_live_page": False
+        }
+        return result
     if on_fetched:
         on_fetched()
     result = parse_html(html, url, on_progress=on_parse_progress)
