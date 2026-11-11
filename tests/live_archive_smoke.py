@@ -5,6 +5,9 @@ import json
 import plistlib
 from urllib.request import Request, urlopen
 from zipfile import ZipFile
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from test_chatkeep import Encoder
 
 BASE = 'https://chatkeep-v12-test.onrender.com'
