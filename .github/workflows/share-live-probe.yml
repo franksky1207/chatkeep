@@ -57,7 +57,7 @@ jobs:
           word_request=urllib.request.Request('https://chatkeep-v12-test.onrender.com/api/convert-v2',
               data=body,headers={'Content-Type':'application/json'},method='POST')
           try:
-              with urllib.request.urlopen(word_request,timeout=55) as word_response:
+              with urllib.request.urlopen(word_request,timeout=96) as word_response:
                   word_status=word_response.status
                   word_raw=word_response.read(24000000)
           except urllib.error.HTTPError as exc:
