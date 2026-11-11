@@ -4,6 +4,20 @@ from unittest.mock import patch
 from official_worker import result
 
 class ShareReaderTests(unittest.TestCase):
+    def test_word_prefers_direct_json_and_preserves_normalized_messages(self):
+        from chatkeep import extract_url
+        url='https://chatgpt.com/share/00000000-0000-0000-0000-000000000000'
+        model={'title':'範例','linear_conversation':[
+            {'id':'a','message':{'id':'a','author':{'role':'user'},
+              'content':{'content_type':'text','parts':['內容']}}}]}
+        with patch('chatkeep.fetch_share_json',return_value=model) as get_json, \\
+             patch('chatkeep.fetch_html') as get_html:
+            result=extract_url(url,prefer_json=True)
+        get_json.assert_called_once_with(url)
+        get_html.assert_not_called()
+        self.assertEqual(result['messages'][0]['text'],'內容')
+        self.assertEqual(result['provenance']['source'],'public_share_json_direct')
+
     def test_image_reference_keeps_message_and_all_text_for_word(self):
         from chatkeep import normalize
         from conversation_export import export_conversation
