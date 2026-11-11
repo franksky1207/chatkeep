@@ -10,6 +10,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 3
     steps:
+      - uses: actions/checkout@v4
       - name: Probe previously reported public share without logging content
         env:
           SHARE_URL: https://chatgpt.com/share/6af41141-2ee4-83ec-a46c-a62ebd9439d6
@@ -75,4 +76,19 @@ jobs:
               print('WORD_PROBE_DOCUMENT_PRESENT',bool(word_result.get('data') or word_result.get('document')))
           else:
               print('WORD_PROBE_ERROR_CODE',(word_result.get('error') or {}).get('code'))
+          PY
+      - name: Verify raw public snapshot issue types without logging text
+        env:
+          SHARE_URL: https://chatgpt.com/share/6af41141-2ee4-83ec-a46c-a62ebd9439d6
+        run: |
+          python3 - <<'PY'
+          from collections import Counter
+          from chatkeep import extract_url
+          import os
+          try:
+              m=extract_url(os.environ['SHARE_URL'])
+              print('SNAPSHOT_REASONS',dict(Counter(x['reason'] for x in m['report'].get('issues',[]))))
+              print('SNAPSHOT_CONTENT_TYPES',dict(Counter((x.get('content_type'),x.get('category')) for x in m['messages'])))
+          except Exception as exc:
+              print('SNAPSHOT_SOURCE_ERROR_CLASS',type(exc).__name__)
           PY
