@@ -37,7 +37,7 @@ def handle(env, start_response, headers, slots, rates, mode='official'):
     try: size = int(env.get('CONTENT_LENGTH') or 0)
     except (ValueError, TypeError):
         return error(400, 'INVALID_LENGTH', '請求長度無效。')
-    limit = 4096 if mode in ('share', 'share_reader') else MAX_INPUT
+    limit = 17_000_000 if mode in ('archive_reader', 'archive_word') else 4096 if mode in ('share', 'share_reader') else MAX_INPUT
     if not 0 < size <= limit:
         return error(413, 'INPUT_TOO_LARGE', '分享連結請求不得超過 4,096 bytes。' if mode == 'share' else '請提供不超過 2 MB 的單一對話。')
     if not rates.admit(env.get('REMOTE_ADDR', 'unknown')):
@@ -52,7 +52,7 @@ def handle(env, start_response, headers, slots, rates, mode='official'):
             expired.set()
             try: connection.shutdown(socket.SHUT_RD)
             except OSError: pass
-        timer = Timer(UPLOAD_TIMEOUT, abort_upload) if connection is not None else None
+        timer = Timer(45 if mode in ('archive_reader', 'archive_word') else UPLOAD_TIMEOUT, abort_upload) if connection is not None else None
         if timer:
             timer.daemon = True
             timer.start()
@@ -83,6 +83,18 @@ def handle(env, start_response, headers, slots, rates, mode='official'):
                 validate_url(payload['url'])
             except (ValueError, TypeError, ExtractionError):
                 return error(400, 'INVALID_URL', '請提供有效公開 ChatGPT 分享連結。')
+        if mode in ('archive_reader', 'archive_word'):
+            from official_json import decode, OfficialError
+            try:
+                payload = decode(body)
+                if not isinstance(payload, dict) or set(payload) != {'filename', 'data'}:
+                    raise ValueError()
+                if not isinstance(payload['filename'], str) or not isinstance(payload['data'], str):
+                    raise ValueError()
+                if len(payload['data']) > 16_100_000:
+                    raise ValueError()
+            except (OfficialError, ValueError, TypeError):
+                return error(400, 'INVALID_ARCHIVE', '請選擇不超過 12 MB 的 Safari 網頁封存檔。')
         # No shell, private command arguments, tempfile or inherited stderr logging.
         process = subprocess.Popen([sys.executable, str(WORKER), mode], stdin=subprocess.PIPE,
                                    stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
