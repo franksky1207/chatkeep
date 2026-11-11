@@ -4,6 +4,21 @@ from unittest.mock import patch
 from official_worker import result
 
 class ShareReaderTests(unittest.TestCase):
+    def test_safe_diagnostic_categories(self):
+        from official_worker import classify_share_failure
+        from chatkeep import ExtractionError
+        cases = {
+            '分享頁回應 HTTP 403；可能已失效或限制匿名存取': 'SOURCE_HTTP_REJECTED',
+            'No ChatGPT stream found': 'SHARE_FORMAT_UNSUPPORTED',
+            'Unsupported turbo-stream tag: Q': 'SHARE_FORMAT_UNSUPPORTED',
+            'Active branch and linear conversation disagree': 'CONVERSATION_STRUCTURE_FAILED',
+            'HTML exceeds permitted size': 'SOURCE_SIZE_OR_TRUNCATED',
+        }
+        for raw, expected in cases.items():
+            self.assertEqual(classify_share_failure(ExtractionError(raw)), expected)
+        self.assertNotIn('https://', classify_share_failure(ExtractionError('https://private.example/secret')))
+
+
     def test_server_registers_reader_route(self):
         from pathlib import Path
         source = (Path(__file__).resolve().parent.parent / 'server.py').read_text(encoding='utf-8')
