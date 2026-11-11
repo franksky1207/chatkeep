@@ -1,5 +1,5 @@
 name: ChatKeep share live probe (test service only)
-# Single end-to-end recheck after previous parallel tests completed.
+# Verify bounded long Word execution after a414a9d1 test deployment.
 on:
   push:
     branches: ['feature/v1.2.0-local-html-reader']
