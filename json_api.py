@@ -11,6 +11,7 @@ from official_json import MAX_INPUT
 
 UPLOAD_TIMEOUT = 10
 CONVERSION_TIMEOUT = 45
+SHARE_WORD_TIMEOUT = 85  # bounded long share documents; gunicorn timeout is 100s
 MAX_RESPONSE = 24_000_000
 WORKER = Path(__file__).resolve().with_name('official_worker.py')
 
@@ -99,7 +100,7 @@ def handle(env, start_response, headers, slots, rates, mode='official'):
         process = subprocess.Popen([sys.executable, str(WORKER), mode], stdin=subprocess.PIPE,
                                    stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
         try:
-            output, _ = process.communicate(body, timeout=CONVERSION_TIMEOUT)
+            output, _ = process.communicate(body, timeout=SHARE_WORD_TIMEOUT if mode == 'share' else CONVERSION_TIMEOUT)
         except subprocess.TimeoutExpired:
             return error(504, 'CONVERSION_TIMEOUT', '公開分享內容讀取逾時。' if mode == 'share_reader' else '轉換逾時，已中止且未提供文件。')
         if process.returncode or len(output) > MAX_RESPONSE:
