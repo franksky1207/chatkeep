@@ -8,6 +8,25 @@ from chatkeep import ExtractionError
 from conversation_export import export_conversation, envelope
 
 
+def classify_share_failure(exc):
+    """Privacy-safe stage code for diagnosing anonymous public-share failures."""
+    detail = str(exc)
+    if detail.startswith('分享頁回應 HTTP '):
+        return 'SOURCE_HTTP_REJECTED'
+    if any(x in detail for x in ('無法建立公開網路連線', '無法取得有效分享頁', '擷取逾時', '公開網路連線逾時')):
+        return 'SOURCE_FETCH_FAILED'
+    if any(x in detail for x in ('HTML exceeds permitted size', 'HTML 下載大小', 'HTML 下載不完整', '無效的下載大小')):
+        return 'SOURCE_SIZE_OR_TRUNCATED'
+    if any(x in detail for x in ('No ChatGPT stream found', 'Unterminated stream chunk', 'Malformed embedded stream chunk',
+                                'Malformed or incomplete stream root', 'Unsupported deferred stream frame',
+                                'Unsupported turbo-stream tag', 'Decoded stream contains no conversation object')):
+        return 'SHARE_FORMAT_UNSUPPORTED'
+    if any(x in detail for x in ('Cannot determine the active conversation branch', 'Active branch and linear conversation disagree',
+                                'Broken conversation parent', 'Cyclic stream reference', 'Conversation node ID mismatch')):
+        return 'CONVERSATION_STRUCTURE_FAILED'
+    return 'EXTRACTION_VALIDATION_FAILED'
+
+
 def result(body, mode='official'):
     if mode == 'share_reader':
         from chatkeep import extract_url, validate_url
@@ -60,8 +79,15 @@ def main():
         status, value = exc.status, {'ok': False, 'error': {'code': exc.code, 'message': str(exc)}}
     except ExportError as exc:
         status, value = 422, {'ok': False, 'error': {'code': exc.code, 'message': str(exc)}}
-    except ExtractionError:
-        status, value = 502, {'ok': False, 'error': {'code': 'EXTRACTION_FAILED', 'message': '無法取得可安全解析的公開分享對話。'}}
+    except ExtractionError as exc:
+        # Diagnostics contain only a fixed category; never expose URLs,
+        # page contents, request values or exception strings.
+        category = classify_share_failure(exc)
+        status, value = 502, {'ok': False, 'error': {
+            'code': 'EXTRACTION_FAILED',
+            'message': '無法取得可安全解析的公開分享對話。',
+            'stage': category,
+        }}
     except MemoryError:
         status, value = 503, {'ok': False, 'error': {'code': 'RESOURCE_LIMIT', 'message': '轉換超過工作程序記憶體限制。'}}
     except Exception:
