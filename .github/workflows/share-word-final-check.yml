@@ -1,0 +1,43 @@
+name: ChatKeep final Word conversion test
+on:
+  push:
+    branches: ['feature/v1.2.0-local-html-reader']
+    paths: ['.github/workflows/share-word-final-check.yml']
+permissions:
+  contents: read
+jobs:
+  word:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - name: Single anonymous public-share Word request, no content logging
+        run: |
+          python3 - <<'PY'
+          import json, urllib.request, urllib.error
+          url='https://chatgpt.com/share/6af41141-2ee4-83ec-a46c-a62ebd9439d6'
+          req=urllib.request.Request('https://chatkeep-v12-test.onrender.com/api/convert-v2',
+              data=json.dumps({'url':url}).encode(),headers={'Content-Type':'application/json'},method='POST')
+          try:
+              with urllib.request.urlopen(req,timeout=96) as rsp:
+                  status=rsp.status
+                  obj=json.load(rsp)
+          except urllib.error.HTTPError as exc:
+              status=exc.code
+              obj=json.load(exc)
+          except Exception as exc:
+              print('RESULT_NETWORK',type(exc).__name__)
+              raise SystemExit(1)
+          print('WORD_HTTP',status)
+          print('WORD_OK',bool(obj.get('ok')))
+          if obj.get('ok'):
+              report=obj.get('report') or {}
+              print('WORD_ARTIFACT_TYPE',obj.get('artifact_type'))
+              print('WORD_VOLUMES',report.get('docx_volume_count'))
+              print('WORD_OUTPUT_MESSAGES',report.get('output_message_count'))
+              print('WORD_COMPLETE',report.get('complete'))
+              print('WORD_BYTES_BASE64',len(obj.get('document') or ''))
+              assert report.get('complete') and report.get('output_message_count')==553
+          else:
+              print('WORD_ERROR_CODE',(obj.get('error') or {}).get('code'))
+              raise SystemExit(1)
+          PY
