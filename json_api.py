@@ -86,14 +86,14 @@ def handle(env, start_response, headers, slots, rates, mode='official'):
         if mode in ('archive_reader', 'archive_word'):
             from official_json import decode, OfficialError
             try:
-                payload = decode(body)
+                payload = json.loads(body)
                 if not isinstance(payload, dict) or set(payload) != {'filename', 'data'}:
                     raise ValueError()
                 if not isinstance(payload['filename'], str) or not isinstance(payload['data'], str):
                     raise ValueError()
                 if len(payload['data']) > 16_100_000:
                     raise ValueError()
-            except (OfficialError, ValueError, TypeError):
+            except (OfficialError, ValueError, TypeError, UnicodeDecodeError):
                 return error(400, 'INVALID_ARCHIVE', '請選擇不超過 12 MB 的 Safari 網頁封存檔。')
         # No shell, private command arguments, tempfile or inherited stderr logging.
         process = subprocess.Popen([sys.executable, str(WORKER), mode], stdin=subprocess.PIPE,
