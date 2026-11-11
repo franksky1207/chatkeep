@@ -11,8 +11,9 @@ from conversation_export import export_conversation, envelope
 def classify_share_failure(exc):
     """Privacy-safe stage code for diagnosing anonymous public-share failures."""
     detail = str(exc)
-    if detail.startswith('分享頁回應 HTTP '):
-        return 'SOURCE_HTTP_REJECTED'
+    match = __import__('re').fullmatch(r'分享頁回應 HTTP ([1-5][0-9][0-9])；可能已失效或限制匿名存取', detail)
+    if match:
+        return 'SOURCE_HTTP_' + match.group(1)
     if any(x in detail for x in ('無法建立公開網路連線', '無法取得有效分享頁', '擷取逾時', '公開網路連線逾時')):
         return 'SOURCE_FETCH_FAILED'
     if any(x in detail for x in ('HTML exceeds permitted size', 'HTML 下載大小', 'HTML 下載不完整', '無效的下載大小')):
