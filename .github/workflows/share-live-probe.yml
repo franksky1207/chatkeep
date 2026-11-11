@@ -1,0 +1,43 @@
+name: ChatKeep share live probe (test service only)
+on:
+  push:
+    branches: ['feature/v1.2.0-local-html-reader']
+    paths: ['.github/workflows/share-live-probe.yml']
+permissions:
+  contents: read
+jobs:
+  one-probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - name: Probe previously reported public share without logging content
+        env:
+          SHARE_URL: https://chatgpt.com/share/6af41141-2ee4-83ec-a46c-a62ebd9439d6
+          TEST_API: https://chatkeep-v12-test.onrender.com/api/share-reader-v1
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.request, urllib.error
+          body=json.dumps({'url':os.environ['SHARE_URL']}).encode('utf-8')
+          request=urllib.request.Request(os.environ['TEST_API'],data=body,
+                  headers={'Content-Type':'application/json'},method='POST')
+          try:
+              with urllib.request.urlopen(request,timeout=55) as response:
+                  status=response.status
+                  result=json.load(response)
+          except urllib.error.HTTPError as exc:
+              status=exc.code
+              result=json.load(exc)
+          except Exception as exc:
+              print('PROBE_NETWORK_EXCEPTION',type(exc).__name__)
+              raise SystemExit(0)
+          print('PROBE_HTTP',status)
+          print('PROBE_OK',bool(result.get('ok')))
+          if result.get('ok'):
+              data=result.get('data') or {}
+              print('PROBE_MESSAGE_COUNT',len(data.get('messages') or []))
+              print('PROBE_REPORT_STATUS',(data.get('report') or {}).get('status'))
+          else:
+              error=result.get('error') or {}
+              print('PROBE_ERROR_CODE',error.get('code'))
+              print('PROBE_ERROR_STAGE',error.get('stage'))
+          PY
