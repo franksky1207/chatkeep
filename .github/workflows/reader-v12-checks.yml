@@ -8,6 +8,9 @@ on:
       - 'docs/index.html'
       - 'tests/reader_core.test.mjs'
       - 'tests/reader_export.test.mjs'
+      - 'tests/test_share_reader.py'
+      - 'official_worker.py'
+      - 'chatkeep.py'
       - '.github/workflows/reader-v12-checks.yml'
   workflow_dispatch:
 permissions:
