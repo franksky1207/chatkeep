@@ -1,0 +1,31 @@
+name: ChatKeep Word CPU hotspots (one-shot)
+on:
+  push:
+    branches: ['feature/v1.2.0-local-html-reader']
+    paths: ['.github/workflows/share-word-hotspots.yml']
+permissions:
+  contents: read
+jobs:
+  profile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 -m pip install --break-system-packages lxml python-docx
+      - name: Profile Word computation and print function names only
+        run: |
+          python3 - <<'PY'
+          import cProfile, pstats, io
+          from chatkeep import extract_url
+          from conversation_export import export_conversation
+          url='https://chatgpt.com/share/6af41141-2ee4-83ec-a46c-a62ebd9439d6'
+          model=extract_url(url, prefer_json=True)
+          profile=cProfile.Profile(); profile.enable()
+          result=export_conversation(model,'share_link',None)
+          profile.disable()
+          print('DOCX_VOLUMES',result['report']['docx_volume_count'])
+          stats=pstats.Stats(profile)
+          rows=sorted(stats.stats.items(),key=lambda x:x[1][3],reverse=True)
+          for (filename,lineno,func),(cc,nc,tt,ct,callers) in rows[:15]:
+              print('CPU_HOTSPOT',func,round(ct,2),nc,filename.rsplit('/',1)[-1],lineno)
+          PY
