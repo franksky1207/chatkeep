@@ -269,11 +269,19 @@ $('read-share').addEventListener('click',async()=>{
      body:JSON.stringify({url}),credentials:'omit',cache:'no-store',signal:ctrl.signal
    });
    const packet=await response.json();
-   if(!response.ok||!packet.ok)throw Error((packet.error?.message||'分享連結閱讀版無法取得內容')+(packet.error?.stage?'（診斷代碼：'+packet.error.stage+'）':''));
+   if(!response.ok||!packet.ok){
+     const stage=packet.error?.stage||'';
+     const diagnosis=stage==='SOURCE_HTTP_503'
+       ?'ChatGPT 分享頁對伺服器暫時回傳 HTTP 503。這不是 HTML 閱讀器或 Render 部署未更新；請稍後再試，或改用官方 JSON 備份。'
+       :stage.startsWith('SOURCE_HTTP_')
+         ?'ChatGPT 分享頁回傳 HTTP '+stage.slice('SOURCE_HTTP_'.length)+'，伺服器無法取得原始內容。'
+         :(packet.error?.message||'分享連結閱讀版無法取得內容');
+     throw Error(diagnosis+(stage?'（診斷代碼：'+stage+'）':''));
+   }
    if(!packet.data||!Array.isArray(packet.data.messages))throw Error('服務回傳格式不正確');
    notice.textContent='已取得公開分享正文，正在本機開啟閱讀版。';
    await reader.openShared(packet.data);
- }catch(e){notice.textContent='無法開啟 HTML 閱讀版：'+(e.name==='AbortError'?'讀取逾時':e.message)+'。此功能需要 Render 部署新版 API，正式服務尚未更新時會顯示錯誤。';}
+ }catch(e){notice.textContent='無法開啟 HTML 閱讀版：'+(e.name==='AbortError'?'讀取逾時，請稍後重試。':e.message);}
  finally{clearTimeout(watch);button.disabled=false;}
 });
 const conversion=mountConversion({
