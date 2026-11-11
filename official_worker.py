@@ -30,6 +30,7 @@ def classify_share_failure(exc):
 
 def archive_model(body):
     import base64
+    import binascii
     from share_archive import extract_archive
     try:
         payload = json.loads(body)
@@ -39,7 +40,7 @@ def archive_model(body):
         if not isinstance(name, str) or len(name) > 150 or not isinstance(encoded, str):
             raise ValueError()
         data = base64.b64decode(encoded, validate=True)
-    except (ValueError, TypeError, KeyError) as exc:
+    except (ValueError, TypeError, KeyError, binascii.Error) as exc:
         raise ExtractionError('ARCHIVE_INPUT_INVALID') from exc
     return extract_archive(data, name)
 
