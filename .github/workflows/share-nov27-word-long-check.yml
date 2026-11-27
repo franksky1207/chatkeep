@@ -1,0 +1,47 @@
+name: ChatKeep Nov27 long Word test (test Render only)
+on:
+  push:
+    branches: ['feature/v1.2.0-local-html-reader']
+    paths: ['.github/workflows/share-nov27-word-long-check.yml']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - name: Verify requested share Word with bounded server timeout and no content logs
+        run: |
+          python3 - <<'PY'
+          import json,urllib.request,urllib.error,base64,zipfile,io,time
+          url='https://chatgpt.com/share/6b09746e-dd24-83e8-85ac-fdadfbb19312'
+          req=urllib.request.Request('https://chatkeep-v12-test.onrender.com/api/convert-v2',
+              data=json.dumps({'url':url}).encode(),
+              headers={'Content-Type':'application/json'},method='POST')
+          t=time.monotonic()
+          try:
+              with urllib.request.urlopen(req,timeout=235) as r:
+                  status=r.status;data=json.load(r)
+          except urllib.error.HTTPError as e:
+              status=e.code;data=json.load(e)
+          except Exception as e:
+              print('WORD_NETWORK_ERROR',type(e).__name__,flush=True)
+              raise SystemExit(1)
+          print('WORD_SECONDS',round(time.monotonic()-t,1),flush=True)
+          print('WORD_HTTP',status,'OK',bool(data.get('ok')),flush=True)
+          if not data.get('ok'):
+              print('WORD_ERROR',(data.get('error') or {}).get('code'),flush=True)
+              raise SystemExit(1)
+          rep=data.get('report') or {}
+          print('WORD_OUTPUT_MESSAGES',rep.get('output_message_count'),
+                'COMPLETE',rep.get('complete'),
+                'VOLUMES',rep.get('docx_volume_count'),flush=True)
+          assert rep.get('output_message_count')==986 and rep.get('complete') is True
+          artifact=base64.b64decode(data.get('document') or '',validate=True)
+          print('WORD_TYPE',data.get('artifact_type'),'BYTES',len(artifact),flush=True)
+          if data.get('artifact_type')=='zip':
+              with zipfile.ZipFile(io.BytesIO(artifact)) as z:
+                  assert z.testzip() is None
+                  print('WORD_ZIP_FILES',len(z.namelist()),flush=True)
+          else: assert artifact.startswith(b'PK')
+          PY
