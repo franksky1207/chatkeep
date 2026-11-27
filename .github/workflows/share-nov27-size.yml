@@ -14,13 +14,16 @@ jobs:
       - name: Inspect bounded source size and sanitized error categories
         run: |
           python3 - <<'PY'
-          import urllib.request
+          import urllib.request, urllib.error
           from chatkeep import fetch_share_json,fetch_html,ExtractionError
           sid='6b09746e-dd24-83e8-85ac-fdadfbb19312'
           base='https://chatgpt.com/'
           for route in ('share/','backend-api/share/'):
-              with urllib.request.urlopen(urllib.request.Request(base+route+sid,headers={'Accept-Encoding':'identity'}),timeout=18) as r:
-                  print('SOURCE',route,'CONTENT_LENGTH',r.headers.get('Content-Length'),'TYPE',r.headers.get('Content-Type','').split(';')[0],flush=True)
+              try:
+                  with urllib.request.urlopen(urllib.request.Request(base+route+sid,headers={'Accept-Encoding':'identity'}),timeout=18) as r:
+                      print('SOURCE',route,'HTTP',r.status,'CONTENT_LENGTH',r.headers.get('Content-Length'),'TYPE',r.headers.get('Content-Type','').split(';')[0],flush=True)
+              except urllib.error.HTTPError as exc:
+                  print('SOURCE',route,'HTTP',exc.code,flush=True)
           errors=['分享 JSON 超過大小限制','HTML exceeds permitted size','分享 JSON 下載不完整','HTML 下載不完整',
                   '分享 JSON 來源回傳非 JSON 內容','分享 JSON 來源讀取失敗','分享 JSON 來源 HTTP',
                   '分享頁回應 HTTP','無法取得有效分享頁','擷取逾時','分享 JSON 不支援壓縮回應',
