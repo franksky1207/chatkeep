@@ -1,0 +1,32 @@
+name: ChatKeep Nov27 second share verification
+on:
+  push:
+    branches: ['feature/v1.2.0-local-html-reader']
+    paths: ['.github/workflows/share-nov27-second-url.yml']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify second user supplied URL against both existing reader endpoints
+        run: |
+          python3 - <<'PY'
+          import urllib.request,urllib.error,json
+          url='https://chatgpt.com/share/6b09746e-dd24-83e8-85ac-fdadfbb19312'
+          for service in ('https://chatkeep-v12-test.onrender.com','https://chatkeep.onrender.com'):
+              req=urllib.request.Request(service+'/api/share-reader-v1',data=json.dumps({'url':url}).encode(),headers={'Content-Type':'application/json'},method='POST')
+              try:
+                  with urllib.request.urlopen(req,timeout=58) as r:
+                      status=r.status; body=json.load(r)
+              except urllib.error.HTTPError as e:
+                  status=e.code; body=json.load(e)
+              except Exception as e:
+                  print('SERVICE',service,'NETWORK_ERROR',type(e).__name__,flush=True);continue
+              print('SERVICE',service,'HTTP',status,'OK',bool(body.get('ok')),
+                    'ERROR',(body.get('error') or {}).get('code'),
+                    'STAGE',(body.get('error') or {}).get('stage'),
+                    'MESSAGES',len((body.get('data') or {}).get('messages') or []),flush=True)
+          PY
