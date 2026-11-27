@@ -1,0 +1,44 @@
+name: ChatKeep Nov27 requested Word capacity profile
+on:
+  push:
+    branches: ['feature/v1.2.0-local-html-reader']
+    paths: ['.github/workflows/share-nov27-word-capacity.yml']
+permissions:
+  contents: read
+jobs:
+  profile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Word generation dependencies
+        run: python3 -m pip install --break-system-packages lxml python-docx
+      - name: Measure actual source size, strict Word output, CPU and memory (no message content)
+        run: |
+          python3 - <<'PY'
+          import time, json, tracemalloc, resource, os
+          from chatkeep import fetch_share_json,find_conversation,normalize
+          from conversation_export import export_conversation
+          url='https://chatgpt.com/share/6b09746e-dd24-83e8-85ac-fdadfbb19312'
+          t=time.monotonic()
+          obj=fetch_share_json(url,max_bytes=64_000_000,timeout=35)
+          print('SOURCE_JSON_COMPACT_MB',round(len(json.dumps(obj,ensure_ascii=False,separators=(',',':')).encode())/1e6,2),flush=True)
+          m=normalize(find_conversation(obj),url)
+          del obj
+          print('MESSAGES',len(m['messages']),'ISSUE_COUNT',len(m['report'].get('issues',[])),flush=True)
+          cpu0=resource.getrusage(resource.RUSAGE_SELF)
+          t0=time.monotonic()
+          try:
+              result=export_conversation(m,'share_link',None)
+              cpu1=resource.getrusage(resource.RUSAGE_SELF)
+              print('WORD_STATUS','OK',flush=True)
+              print('WORD_SECONDS',round(time.monotonic()-t0,1),flush=True)
+              print('WORD_CPU_SECONDS',round(cpu1.ru_utime+cpu1.ru_stime-cpu0.ru_utime-cpu0.ru_stime,1),flush=True)
+              print('WORD_OUTPUT_MESSAGES',result['report']['output_message_count'],flush=True)
+              print('WORD_COMPLETE',result['report']['complete'],flush=True)
+              print('WORD_ZIP_VOLUMES',result['report']['docx_volume_count'],flush=True)
+              print('WORD_BYTES',len(result['data']),flush=True)
+          except Exception as exc:
+              print('WORD_STATUS','FAILED',type(exc).__name__,getattr(exc,'code','none'),flush=True)
+          print('MAX_RSS_MB',round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/1024),flush=True)
+          PY
