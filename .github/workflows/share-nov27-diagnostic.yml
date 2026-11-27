@@ -1,0 +1,51 @@
+name: ChatKeep Nov27 upstream share probe
+on:
+  push:
+    branches: ['feature/v1.2.0-local-html-reader']
+    paths: ['.github/workflows/share-nov27-diagnostic.yml']
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe two previously supplied public shares without logging message data
+        run: |
+          python3 - <<'PY'
+          import urllib.request, urllib.error, json, time
+          ids=['6af41141-2ee4-83ec-a46c-a62ebd9439d6','6b09746e-dd24-83e8-85ac-fdadfbb19312']
+          for index, sid in enumerate(ids):
+              for label,endpoint in [('HTML','https://chatgpt.com/share/'),('JSON','https://chatgpt.com/backend-api/share/')]:
+                  req=urllib.request.Request(endpoint+sid,headers={'User-Agent':'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36','Accept':'application/json' if label=='JSON' else 'text/html','Accept-Encoding':'identity'})
+                  try:
+                      with urllib.request.urlopen(req,timeout=18) as r:
+                          status=r.status; typ=r.headers.get('Content-Type','').split(';')[0]
+                          prefix=r.read(512)
+                  except urllib.error.HTTPError as e:
+                      status=e.code;typ=e.headers.get('Content-Type','').split(';')[0];prefix=b''
+                  except Exception as e:
+                      print('SHARE',index,label,'NETWORK',type(e).__name__,flush=True)
+                      continue
+                  print('SHARE',index,label,'STATUS',status,'TYPE',typ,'PREFIX_BYTES',len(prefix),flush=True)
+          PY
+      - name: Probe current test API with one public share, log only safe status codes
+        run: |
+          python3 - <<'PY'
+          import urllib.request,urllib.error,json
+          url='https://chatgpt.com/share/6af41141-2ee4-83ec-a46c-a62ebd9439d6'
+          base='https://chatkeep-v12-test.onrender.com'
+          for route in ('/api/share-reader-v1','/api/convert-v2'):
+              req=urllib.request.Request(base+route,data=json.dumps({'url':url}).encode(),headers={'Content-Type':'application/json'},method='POST')
+              try:
+                  with urllib.request.urlopen(req,timeout=96) as r:
+                      status=r.status; data=json.load(r)
+              except urllib.error.HTTPError as e:
+                  status=e.code;data=json.load(e)
+              except Exception as e:
+                  print('API',route,'NETWORK',type(e).__name__,flush=True);continue
+              print('API',route,'HTTP',status,'OK',bool(data.get('ok')),'ERROR_CODE',(data.get('error') or {}).get('code'),'STAGE',(data.get('error') or {}).get('stage'),flush=True)
+              if data.get('ok'):
+                  print('API',route,'MESSAGE_COUNT',len((data.get('data') or {}).get('messages') or []),'VOLUMES',(data.get('report') or {}).get('docx_volume_count'),flush=True)
+          PY
