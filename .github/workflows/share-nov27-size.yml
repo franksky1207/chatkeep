@@ -1,0 +1,37 @@
+name: ChatKeep Nov27 source-size validation
+on:
+  push:
+    branches: ['feature/v1.2.0-local-html-reader']
+    paths: ['.github/workflows/share-nov27-size.yml']
+permissions:
+  contents: read
+jobs:
+  sizes:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect bounded source size and sanitized error categories
+        run: |
+          python3 - <<'PY'
+          import urllib.request
+          from chatkeep import fetch_share_json,fetch_html,ExtractionError
+          sid='6b09746e-dd24-83e8-85ac-fdadfbb19312'
+          base='https://chatgpt.com/'
+          for route in ('share/','backend-api/share/'):
+              with urllib.request.urlopen(urllib.request.Request(base+route+sid,headers={'Accept-Encoding':'identity'}),timeout=18) as r:
+                  print('SOURCE',route,'CONTENT_LENGTH',r.headers.get('Content-Length'),'TYPE',r.headers.get('Content-Type','').split(';')[0],flush=True)
+          errors=['分享 JSON 超過大小限制','HTML exceeds permitted size','分享 JSON 下載不完整','HTML 下載不完整',
+                  '分享 JSON 來源回傳非 JSON 內容','分享 JSON 來源讀取失敗','分享 JSON 來源 HTTP',
+                  '分享頁回應 HTTP','無法取得有效分享頁','擷取逾時','分享 JSON 不支援壓縮回應',
+                  '不支援的壓縮回應','分享網址解析至非公開網路','分享 JSON 宣告大小無效',
+                  '分享 JSON 來源拒絕直接存取','分享網址未回傳 HTML 頁面','HTML 下載大小與宣告不符']
+          for name,action in [('JSON',lambda:fetch_share_json(base+'share/'+sid)),
+                              ('HTML',lambda:fetch_html(base+'share/'+sid))]:
+              try:
+                  result=action()
+                  print('RESULT',name,'OK_BYTES',len(result) if isinstance(result,str) else -1,flush=True)
+              except Exception as exc:
+                  code=next((e for e in errors if e in str(exc)),'UNKNOWN')
+                  print('RESULT',name,'ERROR_CLASS',type(exc).__name__,'ERROR_CATEGORY',code,flush=True)
+          PY
