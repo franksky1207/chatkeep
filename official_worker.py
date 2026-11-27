@@ -14,7 +14,7 @@ def result(body, mode='official'):
         payload = json.loads(body)
         url = payload['url']
         validate_url(url)
-        model = extract_url(url)
+        model = extract_url(url, prefer_json=True)
         # Return only the published conversational text. No DOCX export.
         messages = []
         for item in model.get('messages', []):
@@ -40,7 +40,7 @@ def result(body, mode='official'):
         from chatkeep import extract_url, validate_url
         payload = json.loads(body)
         url = payload['url']; validate_url(url)
-        model = extract_url(url)
+        model = extract_url(url, prefer_json=True)
         report = None
         source = 'share_link'
     else:
@@ -53,7 +53,8 @@ def main():
     try:
         resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
         resource.setrlimit(resource.RLIMIT_AS, (384 * 1024**2, 384 * 1024**2))
-        resource.setrlimit(resource.RLIMIT_CPU, (30, 31))
+        cpu_limit = 75 if sys.argv[1:2] == ['share'] else 30
+        resource.setrlimit(resource.RLIMIT_CPU, (cpu_limit, cpu_limit + 1))
         value = result(sys.stdin.buffer.read(MAX_INPUT + 1), sys.argv[1] if len(sys.argv)>1 else 'official')
         status = 200
     except OfficialError as exc:
