@@ -4,6 +4,33 @@ from unittest.mock import patch
 from official_worker import result
 
 class ShareReaderTests(unittest.TestCase):
+    def test_share_json_first_works_without_html_and_preserves_full_output(self):
+        from chatkeep import extract_url, fetch_share_json
+        import inspect
+        url='https://chatgpt.com/share/00000000-0000-0000-0000-000000000000'
+        model={'title':'來源','linear_conversation':[
+            {'id':'m1','message':{'id':'m1','author':{'role':'user'},
+             'content':{'content_type':'text','parts':['可見文字']}}}]}
+        self.assertEqual(inspect.signature(fetch_share_json).parameters['max_bytes'].default,32_000_000)
+        with (patch('chatkeep.fetch_share_json',return_value=model) as get_json,
+              patch('chatkeep.fetch_html') as get_html):
+            result=extract_url(url,prefer_json=True)
+        get_json.assert_called_once_with(url)
+        get_html.assert_not_called()
+        self.assertEqual(result['messages'][0]['text'],'可見文字')
+        self.assertEqual(result['provenance']['source'],'public_share_json_direct')
+
+    def test_public_share_worker_routes_request_json_first(self):
+        from official_worker import result
+        url='https://chatgpt.com/share/00000000-0000-0000-0000-000000000000'
+        model={'title':'範例分享','messages':[{'category':'visible','role':'user','text':'文字'}],
+               'report':{'status':'extracted_unverified','issues':[],'warnings':[]}}
+        with patch('chatkeep.extract_url',return_value=model) as getter:
+            output=result(('{"url":"'+url+'"}').encode(),'share_reader')
+        getter.assert_called_once_with(url,prefer_json=True)
+        self.assertTrue(output['ok'])
+
+
     def test_image_reference_keeps_message_and_all_text_for_word(self):
         from chatkeep import normalize
         from conversation_export import export_conversation
