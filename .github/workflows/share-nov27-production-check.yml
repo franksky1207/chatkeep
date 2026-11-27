@@ -1,0 +1,55 @@
+name: ChatKeep Nov27 production verification
+on:
+  push:
+    branches: ['feature/v1.2.0-local-html-reader']
+    paths: ['.github/workflows/share-nov27-production-check.yml']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - name: Verify production HTML and Word with exact requested public URL
+        run: |
+          python3 - <<'PY'
+          import json,urllib.request,urllib.error,base64,zipfile,io,time
+          url='https://chatgpt.com/share/6b09746e-dd24-83e8-85ac-fdadfbb19312'
+          host='https://chatkeep.onrender.com'
+          for route,timeout in (('/api/share-reader-v1',65),('/api/convert-v2',230)):
+              request=urllib.request.Request(host+route,method='POST',
+                  data=json.dumps({'url':url}).encode(),
+                  headers={'Content-Type':'application/json'})
+              started=time.monotonic()
+              try:
+                  with urllib.request.urlopen(request,timeout=timeout) as response:
+                      status=response.status;data=json.load(response)
+              except urllib.error.HTTPError as exc:
+                  status=exc.code
+                  try: data=json.load(exc)
+                  except ValueError:
+                      print('PRODUCTION',route,'HTTP',status,'NON_JSON',flush=True)
+                      raise SystemExit(1)
+              except Exception as exc:
+                  print('PRODUCTION',route,'NETWORK_ERROR',type(exc).__name__,flush=True)
+                  raise SystemExit(1)
+              print('PRODUCTION',route,'HTTP',status,'OK',bool(data.get('ok')),
+                    'SECONDS',round(time.monotonic()-started,1),flush=True)
+              if not data.get('ok'):
+                  print('PRODUCTION',route,'CODE',(data.get('error') or {}).get('code'),flush=True)
+                  raise SystemExit(1)
+              if route.endswith('share-reader-v1'):
+                  count=len((data.get('data') or {}).get('messages') or [])
+                  print('PRODUCTION_READER_MESSAGES',count,flush=True)
+                  assert count==986
+              else:
+                  report=data.get('report') or {}
+                  blob=base64.b64decode(data.get('document') or '',validate=True)
+                  print('PRODUCTION_WORD_MESSAGES',report.get('output_message_count'),
+                    'COMPLETE',report.get('complete'),'TYPE',data.get('artifact_type'),
+                    'VOLUMES',report.get('docx_volume_count'),'BYTES',len(blob),flush=True)
+                  assert report.get('output_message_count')==986 and report.get('complete') is True
+                  if data.get('artifact_type')=='zip':
+                      with zipfile.ZipFile(io.BytesIO(blob)) as z: assert z.testzip() is None
+                  else: assert blob.startswith(b'PK')
+          PY
