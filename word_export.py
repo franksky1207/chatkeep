@@ -78,6 +78,8 @@ class WordVolume:
         self.model, self.rich, self.capacity, self.check = model, rich, capacity, check
         self.message_offset = message_offset
         self.document = configure(Document())
+        self._heading_style = self.document.styles['Heading 2']
+        self._warning_style = self.document.styles['ChatKeep Warning']
         title = str(model['title']); _check_xml(title)
         self.document.add_heading(title, 0)
         self.document.add_paragraph('ChatKeep｜對話收藏')
@@ -121,7 +123,7 @@ class WordVolume:
             message = self.model['messages'][index]
             role = {'user': '使用者', 'assistant': 'ChatGPT'}.get(message['role'], message['role'])
             position = index + self.message_offset + 1
-            paragraph = self.document.add_heading('%d · %s' % (position, role), 2)
+            paragraph = self.document.add_paragraph('%d · %s' % (position, role), style=self._heading_style)
             start = OxmlElement('w:bookmarkStart'); start.set(qn('w:id'), str(position)); start.set(qn('w:name'), 'ChatKeepMessage_%d' % position)
             end = OxmlElement('w:bookmarkEnd'); end.set(qn('w:id'), str(position))
             paragraph._p.append(start); paragraph._p.append(end)
@@ -130,7 +132,7 @@ class WordVolume:
                 for warning in render_message(self.document, text):
                     observer()
                     pending_warnings.append({'message_index': index, 'reason': warning})
-                    self.document.add_paragraph('［轉換警告］'+warning, style='ChatKeep Warning')
+                    self.document.add_paragraph('［轉換警告］'+warning, style=self._warning_style)
             else:
                 observer(elements=2+2*(text.count('\n')+text.count('\r')+text.count('\t')))
                 self.document.add_paragraph().add_run(text)
