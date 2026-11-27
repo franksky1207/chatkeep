@@ -496,7 +496,7 @@ def parse_html(html, url="", on_progress=None):
         raise ExtractionError("來源資料無法安全表示為標準 JSON") from exc
 
 
-def fetch_share_json(url, timeout=15, max_bytes=20_000_000):
+def fetch_share_json(url, timeout=25, max_bytes=32_000_000):
     """Read the public share snapshot from ChatGPT's same-host JSON path.
 
     This is an undocumented upstream path, used only after an HTML 503.
