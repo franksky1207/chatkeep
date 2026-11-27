@@ -1,0 +1,22 @@
+name: Share JSON download checks
+on:
+  pull_request:
+    paths:
+      - 'docs/local-backup/share-json.mjs'
+      - 'docs/local-backup/app.mjs'
+      - 'tests/share-json.test.mjs'
+  push:
+    branches: ['share-json-download-20261127']
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check docs/local-backup/app.mjs
+      - run: node --test tests/share-json.test.mjs tests/reader_core.test.mjs tests/reader_export.test.mjs

@@ -2,6 +2,7 @@ import {zipFiles,safeHtmlName} from './reader-export.mjs';
 import {shareURL,apiBase} from './conversion.mjs';
 import {mountReader} from './reader-ui.mjs';
 import {safeFilename} from './conversion.mjs';
+import {shareBackup} from './share-json.mjs';
 import {mountModes} from './site-ui.mjs';
 import {mountConversion} from './conversion-ui.mjs';
 import {filterRows,report,seriesNumber,isoDate} from './filters.mjs';
@@ -275,6 +276,26 @@ $('read-share').addEventListener('click',async()=>{
    await reader.openShared(packet.data);
  }catch(e){notice.textContent='無法開啟 HTML 閱讀版：'+(e.name==='AbortError'?'讀取逾時，請稍後再試。':e.message);}
  finally{clearTimeout(watch);button.disabled=false;}
+});
+$('download-share-json').addEventListener('click',async()=>{
+ const button=$('download-share-json'),notice=$('share-read-status');
+ if(busy||button.disabled||$('read-share').disabled)return;
+ let url,base;
+ try{url=shareURL($('share-url').value);base=apiBase($('api-base').value);}
+ catch{notice.textContent='請輸入有效的 ChatGPT 公開分享連結。';return;}
+ busy=true;controls();button.disabled=true;$('read-share').disabled=true;
+ notice.textContent='正在取得對話正文，不會產生 Word 或 HTML。';
+ const ctrl=new AbortController(),watch=setTimeout(()=>ctrl.abort(),55000);
+ try{
+  const response=await fetch(base+'/api/share-reader-v1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url}),credentials:'omit',cache:'no-store',redirect:'error',signal:ctrl.signal});
+  const packet=await response.json();
+  if(!response.ok||!packet.ok)throw Error(packet.error?.message||'無法取得公開分享正文');
+  const backup=shareBackup(packet.data,url);
+  const blob=new Blob([JSON.stringify(backup)],{type:'application/json;charset=utf-8'});
+  const href=URL.createObjectURL(blob);const a=document.createElement('a');a.href=href;a.download=safeFilename(backup[0].title,'json');document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(href),60000);
+  notice.textContent='已啟動 JSON 下載：'+packet.data.messages.length+' 則可讀訊息。請確認檔案已保存。';
+ }catch(e){notice.textContent='JSON 下載失敗：'+(e.name==='AbortError'?'讀取逾時':e.message);}
+ finally{clearTimeout(watch);busy=false;button.disabled=false;$('read-share').disabled=false;controls();}
 });
 const conversion=mountConversion({
  getSelected:()=>index.filter(x=>selected.has(x.key)),
