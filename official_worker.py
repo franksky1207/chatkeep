@@ -76,7 +76,7 @@ def result(body, mode='official'):
         payload = json.loads(body)
         url = payload['url']
         validate_url(url)
-        model = extract_url(url)
+        model = extract_url(url, prefer_json=True)
         return readable_share(model)
     if mode == 'chunk':
         from chunk_transfer import convert_chunk
