@@ -1,0 +1,53 @@
+name: ChatKeep Nov27 parse-shape inspection (no content)
+on:
+  push:
+    branches: ['feature/v1.2.0-local-html-reader']
+    paths: ['.github/workflows/share-nov27-shape.yml']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+      - name: Diagnose public share shape without printing messages or IDs
+        run: |
+          python3 - <<'PY'
+          from chatkeep import fetch_share_json, find_conversation, normalize, fetch_html, parse_html
+          url='https://chatgpt.com/share/6b09746e-dd24-83e8-85ac-fdadfbb19312'
+          reasons=['Cannot determine the active conversation branch','Active branch and linear conversation disagree',
+              'Broken conversation parent','Conversation node ID mismatch','Decoded stream contains no conversation object',
+              '分享頁未包含可匯出的可見訊息','No ChatGPT stream found','分享 JSON 結構無法安全解析',
+              'Malformed embedded stream chunk','Unterminated stream chunk','unsupported_content',
+              'Cyclic stream reference','Invalid conversation node','Invalid message object','Invalid message metadata']
+          def status(label,fn):
+              try: return fn()
+              except Exception as exc:
+                  msg=str(exc)
+                  code=next((x for x in reasons if x in msg),'UNKNOWN')
+                  print(label,'ERROR_TYPE',type(exc).__name__,'ERROR_CODE',code,flush=True)
+                  return None
+          obj=status('JSON_GET',lambda:fetch_share_json(url))
+          if obj is not None:
+              print('JSON_TOP_TYPE',type(obj).__name__,flush=True)
+              if isinstance(obj,dict):print('JSON_TOP_KEYS',sorted(obj.keys()),flush=True)
+              conv=status('FIND_CONVERSATION',lambda:find_conversation(obj))
+              if isinstance(conv,dict):
+                  print('CONVERSATION_KEYS',sorted(conv.keys()),flush=True)
+                  mapping=conv.get('mapping')
+                  linear=conv.get('linear_conversation')
+                  print('MAPPING_TYPE',type(mapping).__name__,'MAPPING_COUNT',len(mapping) if isinstance(mapping,dict) else -1,flush=True)
+                  print('LINEAR_TYPE',type(linear).__name__,'LINEAR_COUNT',len(linear) if isinstance(linear,list) else -1,flush=True)
+                  print('CURRENT_PRESENT',bool(conv.get('current_node')),flush=True)
+                  if isinstance(linear,list) and linear:
+                      print('LINEAR_NODE_TYPE',type(linear[0]).__name__,flush=True)
+                      if isinstance(linear[0],dict):print('LINEAR_NODE_KEYS',sorted(linear[0].keys()),flush=True)
+                  normalized=status('NORMALIZE_JSON',lambda:normalize(conv))
+                  if normalized is not None:print('NORMALIZE_JSON_MESSAGES',len(normalized.get('messages',[])),flush=True)
+          html=status('HTML_GET',lambda:fetch_html(url))
+          if html is not None:
+              print('HTML_LENGTH',len(html),flush=True)
+              result=status('PARSE_HTML',lambda:parse_html(html,url))
+              if result is not None:print('PARSE_HTML_MESSAGES',len(result.get('messages',[])),flush=True)
+          PY
