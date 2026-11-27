@@ -1,0 +1,52 @@
+name: ChatKeep Nov27 exact share end-to-end verification
+on:
+  push:
+    branches: ['feature/v1.2.0-local-html-reader']
+    paths: ['.github/workflows/share-nov27-final-verify.yml']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - name: Verify public share reader and Word are fully functional
+        run: |
+          python3 - <<'PY'
+          import json,urllib.request,urllib.error,base64,zipfile,io
+          url='https://chatgpt.com/share/6b09746e-dd24-83e8-85ac-fdadfbb19312'
+          host='https://chatkeep-v12-test.onrender.com'
+          for route,timeout in (('/api/share-reader-v1',65),('/api/convert-v2',99)):
+              req=urllib.request.Request(host+route,data=json.dumps({'url':url}).encode(),
+                  headers={'Content-Type':'application/json'},method='POST')
+              try:
+                  with urllib.request.urlopen(req,timeout=timeout) as r:
+                      status=r.status; body=json.load(r)
+              except urllib.error.HTTPError as exc:
+                  status=exc.code;body=json.load(exc)
+              except Exception as exc:
+                  print('RESULT',route,'NETWORK_ERROR',type(exc).__name__,flush=True)
+                  raise SystemExit(1)
+              print('RESULT',route,'HTTP',status,'OK',bool(body.get('ok')),flush=True)
+              if not body.get('ok'):
+                  print('RESULT',route,'ERROR_CODE',(body.get('error') or {}).get('code'),
+                        'STAGE',(body.get('error') or {}).get('stage'),flush=True)
+                  raise SystemExit(1)
+              if route.endswith('share-reader-v1'):
+                  data=body.get('data') or {}
+                  print('RESULT',route,'COUNT',len(data.get('messages') or []),flush=True)
+                  assert len(data.get('messages') or [])==986
+              else:
+                  report=body.get('report') or {}
+                  artifact=base64.b64decode(body.get('document') or '',validate=True)
+                  print('RESULT',route,'TYPE',body.get('artifact_type'),'COUNT',report.get('output_message_count'),
+                        'COMPLETE',report.get('complete'),'VOLUMES',report.get('docx_volume_count'),
+                        'BYTES',len(artifact),flush=True)
+                  assert report.get('complete') is True and report.get('output_message_count')==986
+                  if body.get('artifact_type')=='zip':
+                      with zipfile.ZipFile(io.BytesIO(artifact)) as z:
+                          assert z.testzip() is None
+                          print('RESULT',route,'ZIP_DOCX_COUNT',len(z.namelist()),flush=True)
+                  else:
+                      assert artifact.startswith(b'PK')
+          PY
