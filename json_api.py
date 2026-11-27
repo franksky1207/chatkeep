@@ -11,7 +11,7 @@ from official_json import MAX_INPUT
 
 UPLOAD_TIMEOUT = 10
 CONVERSION_TIMEOUT = 45
-SHARE_WORD_TIMEOUT = 85  # bounded long share documents; gunicorn timeout is 100s
+SHARE_WORD_TIMEOUT = 190  # bounded long share documents on low-CPU free instances; gunicorn timeout is 250s
 MAX_RESPONSE = 24_000_000
 WORKER = Path(__file__).resolve().with_name('official_worker.py')
 
