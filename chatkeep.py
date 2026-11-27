@@ -496,7 +496,7 @@ def parse_html(html, url="", on_progress=None):
         raise ExtractionError("來源資料無法安全表示為標準 JSON") from exc
 
 
-def fetch_share_json(url, timeout=15, max_bytes=20_000_000):
+def fetch_share_json(url, timeout=25, max_bytes=32_000_000):
     """Read the public share snapshot from ChatGPT's same-host JSON path.
 
     This is an undocumented upstream path, used only after an HTML 503.
@@ -550,7 +550,30 @@ def fetch_share_json(url, timeout=15, max_bytes=20_000_000):
         raise ExtractionError("分享 JSON 來源讀取失敗") from exc
 
 
-def extract_url(url, on_fetched=None, on_download_progress=None, on_parse_progress=None):
+def extract_url(url, on_fetched=None, on_download_progress=None, on_parse_progress=None, prefer_json=False):
+    # Large Word exports use the public same-host JSON snapshot first to avoid
+    # a known failing HTML request; the legacy HTML path remains available.
+    if prefer_json:
+        try:
+            snapshot = fetch_share_json(url)
+        except ExtractionError:
+            pass
+        else:
+            if on_fetched:
+                on_fetched()
+            try:
+                result = normalize(find_conversation(snapshot), url, on_progress=on_parse_progress)
+                json.dumps(result, ensure_ascii=False, allow_nan=False)
+            except (RecursionError, TypeError, ValueError) as exc:
+                if isinstance(exc, ExtractionError):
+                    raise
+                raise ExtractionError("分享 JSON 結構無法安全解析") from exc
+            result["provenance"] = {
+                "retrieved_at": datetime.now(timezone.utc).isoformat(),
+                "source": "public_share_json_direct",
+                "verified_against_live_page": False
+            }
+            return result
     try:
         html = fetch_html(url, on_progress=on_download_progress)
     except ExtractionError as exc:
